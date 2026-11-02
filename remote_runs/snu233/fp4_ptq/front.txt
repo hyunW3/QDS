@@ -1,0 +1,12 @@
+meta-llama/Meta-Llama-3-8B llama3-8b e2m1 0 _G128 --fmt nvfp4_g128
+meta-llama/Meta-Llama-3-8B llama3-8b e2m1_h 0 _G128rht --fmt nvfp4_g128 --rht
+meta-llama/Llama-3.1-8B llama31-8b e2m1 0 _G128 --fmt nvfp4_g128
+meta-llama/Llama-3.1-8B llama31-8b e2m1_h 0 _G128rht --fmt nvfp4_g128 --rht
+Qwen/Qwen3-8B qwen3-8b e2m1 0 _G128 --fmt nvfp4_g128
+Qwen/Qwen3-8B qwen3-8b e2m1_h 0 _G128rht --fmt nvfp4_g128 --rht
+meta-llama/Meta-Llama-3-8B llama3-8b e2m1_h 0 _G32rht --fmt nvfp4_g32 --rht
+meta-llama/Meta-Llama-3-8B llama3-8b e2m1_h 0 _MXrht --fmt mxfp4 --rht
+meta-llama/Llama-3.1-8B llama31-8b e2m1_h 0 _G32rht --fmt nvfp4_g32 --rht
+meta-llama/Llama-3.1-8B llama31-8b e2m1_h 0 _MXrht --fmt mxfp4 --rht
+Qwen/Qwen3-8B qwen3-8b e2m1_h 0 _G32rht --fmt nvfp4_g32 --rht
+Qwen/Qwen3-8B qwen3-8b e2m1_h 0 _MXrht --fmt mxfp4 --rht

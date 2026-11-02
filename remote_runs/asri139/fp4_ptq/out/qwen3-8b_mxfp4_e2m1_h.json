@@ -1,0 +1,23 @@
+{
+ "model": "qwen3-8b",
+ "method": "e2m1_h",
+ "fmt": "mxfp4",
+ "gptq": false,
+ "hf": "Qwen/Qwen3-8B",
+ "args": {
+  "hf": "Qwen/Qwen3-8B",
+  "tag": "qwen3-8b",
+  "method": "e2m1_h",
+  "out": "out/qwen3-8b_mxfp4_e2m1_h.json",
+  "ncal": 8,
+  "Tcal": 1024,
+  "steps": 250,
+  "limit": null,
+  "fmt": "mxfp4",
+  "gptq": false,
+  "bs": 8,
+  "cal": "dclm_val_head2000.jsonl",
+  "tasks": "hellaswag,arc_easy,arc_challenge,piqa,winogrande"
+ },
+ "wikitext2_ppl": 11.52622128780628
+}

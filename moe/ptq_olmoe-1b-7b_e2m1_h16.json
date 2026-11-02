@@ -1,0 +1,10 @@
+{
+ "model": "olmoe-1b-7b",
+ "hf": "allenai/OLMoE-1B-7B-0125",
+ "method": "e2m1_h16",
+ "ncal": 8,
+ "Tcal": 1024,
+ "quant_sec": 1.7624552249908447,
+ "wikitext2_ppl": 7.3997133522861605,
+ "ppl_sec": 193.22141456604004
+}

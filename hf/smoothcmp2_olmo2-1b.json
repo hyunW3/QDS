@@ -1,0 +1,22 @@
+{
+ "model": "olmo2-1b",
+ "pre_norm": false,
+ "gqa_rep": 1,
+ "BF16": 0.8103319337196393,
+ "E2M1 (no transform) | E2M1": 0.8364495023210747,
+ "E2M1 (no transform) | E2M1-4/6": 0.8353177221259115,
+ "SmoothQuant α=0.5 (shared, foldable) | E2M1": 0.844507707419372,
+ "SmoothQuant α=0.5 (shared, foldable) | E2M1-4/6": 0.8432438021791535,
+ "DIAG per-Linear | E2M1": 0.8290665499642428,
+ "DIAG per-Linear | E2M1-4/6": 0.8250508718849127,
+ "DIAG shared | E2M1": 0.8294069166072642,
+ "DIAG shared | E2M1-4/6": 0.8256568635281825,
+ "DIAG fold (shared + GQA tie) | E2M1": 0.8294069166072642,
+ "DIAG fold (shared + GQA tie) | E2M1-4/6": 0.8256568635281825,
+ "DIAG shared, SQ init | E2M1": 0.8289354083618556,
+ "DIAG shared, SQ init | E2M1-4/6": 0.8270929762631702,
+ "LET-noshift (block-wise, fold) | E2M1": 0.8303735595920826,
+ "LET-noshift (block-wise, fold) | E2M1-4/6": 0.8275559724781071,
+ "LET-noshift per-Linear (block-wise, unshared) | E2M1": 0.8309114120256373,
+ "LET-noshift per-Linear (block-wise, unshared) | E2M1-4/6": 0.8284763411435975
+}

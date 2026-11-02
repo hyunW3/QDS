@@ -1,0 +1,33 @@
+{
+ "model": "llama31-8b",
+ "method": "e2m1_or",
+ "fmt": "nvfp4",
+ "gptq": false,
+ "hf": "meta-llama/Llama-3.1-8B",
+ "args": {
+  "hf": "meta-llama/Llama-3.1-8B",
+  "tag": "llama31-8b",
+  "method": "e2m1_or",
+  "out": "out/llama31-8b_nvfp4_e2m1_or.json",
+  "ncal": 8,
+  "Tcal": 1024,
+  "steps": 250,
+  "limit": null,
+  "ngptq": 128,
+  "fmt": "nvfp4",
+  "gptq": false,
+  "ste": "fp32",
+  "seed": 0,
+  "load_scales": "",
+  "drop_shift": false,
+  "shift_skip_first": false,
+  "ppl_only": true,
+  "alpha": 0.5,
+  "save_scales": "out/llama31-8b_nvfp4_e2m1_or.scales.pt",
+  "let_steps": 100,
+  "bs": 8,
+  "cal": "dclm_val_head2000.jsonl",
+  "tasks": "hellaswag,arc_easy,arc_challenge,piqa,winogrande"
+ },
+ "wikitext2_ppl": 6.900934550530429
+}

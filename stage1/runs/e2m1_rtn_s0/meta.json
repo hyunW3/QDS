@@ -1,0 +1,25 @@
+{
+ "arm": "e2m1_rtn",
+ "seed": 0,
+ "out": "runs/e2m1_rtn_s0",
+ "steps": 6000,
+ "micro": 16,
+ "accum": 4,
+ "seqlen": 1024,
+ "lr": 0.0015,
+ "warmup": 400,
+ "eval_every": 500,
+ "dim": 512,
+ "layers": 12,
+ "ffn": 1536,
+ "heads": 8,
+ "cfg": {
+  "grid": "e2m1",
+  "scale": "6",
+  "tf": "none",
+  "dy": "rtn",
+  "ofp8": 0.0
+ },
+ "params": 66073088,
+ "tokens_per_step": 65536
+}

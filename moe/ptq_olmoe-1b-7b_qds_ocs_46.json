@@ -1,0 +1,108 @@
+{
+ "model": "olmoe-1b-7b",
+ "hf": "allenai/OLMoE-1B-7B-0125",
+ "method": "qds_ocs_46",
+ "ncal": 8,
+ "Tcal": 1024,
+ "alphas": {
+  "0": {
+   "attn_in": 0.6,
+   "o": 0.7,
+   "moe_in": 0.9,
+   "down_mean": 0.3390625
+  },
+  "1": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.8,
+   "down_mean": 0.328125
+  },
+  "2": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.3046875
+  },
+  "3": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.8,
+   "down_mean": 0.3140625
+  },
+  "4": {
+   "attn_in": 0.7,
+   "o": 0.6,
+   "moe_in": 0.7,
+   "down_mean": 0.309375
+  },
+  "5": {
+   "attn_in": 0.7,
+   "o": 0.6,
+   "moe_in": 0.7,
+   "down_mean": 0.33125
+  },
+  "6": {
+   "attn_in": 0.7,
+   "o": 0.6,
+   "moe_in": 0.7,
+   "down_mean": 0.3390625
+  },
+  "7": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.3671875
+  },
+  "8": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.36875
+  },
+  "9": {
+   "attn_in": 0.6,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.390625
+  },
+  "10": {
+   "attn_in": 0.7,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.4
+  },
+  "11": {
+   "attn_in": 0.6,
+   "o": 0.8,
+   "moe_in": 0.7,
+   "down_mean": 0.4265625
+  },
+  "12": {
+   "attn_in": 0.6,
+   "o": 0.9,
+   "moe_in": 0.7,
+   "down_mean": 0.4390625
+  },
+  "13": {
+   "attn_in": 0.6,
+   "o": 0.9,
+   "moe_in": 0.7,
+   "down_mean": 0.4359375
+  },
+  "14": {
+   "attn_in": 0.6,
+   "o": 0.7,
+   "moe_in": 0.7,
+   "down_mean": 0.55
+  },
+  "15": {
+   "attn_in": 0.6,
+   "o": 1.0,
+   "moe_in": 0.7,
+   "down_mean": 0.71875
+  }
+ },
+ "quant_sec": 69.66644978523254,
+ "wikitext2_ppl": 7.1590295998786075,
+ "ppl_sec": 281.90130853652954
+}

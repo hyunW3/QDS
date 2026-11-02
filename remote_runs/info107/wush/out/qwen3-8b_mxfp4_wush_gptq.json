@@ -1,0 +1,88 @@
+{
+ "model": "qwen3-8b",
+ "hf": "Qwen/Qwen3-8B",
+ "fmt": "mxfp4",
+ "method": "WUSH-GPTQ (official, transform=wush)",
+ "flags": "python wush_run.py --tag qwen3-8b --out out/qwen3-8b_mxfp4_wush_gptq.json -- --model_name_or_path=Qwen/Qwen3-8B --format=mxfp4 --gptq=1 --transform_type=wush --num_sequences=128 --sequence_length=2048 --seed=42",
+ "wush_args": {
+  "seed": 42,
+  "log_wandb": false,
+  "model_name_or_path": "Qwen/Qwen3-8B",
+  "dtype": "auto",
+  "compile": false,
+  "format": "mxfp4",
+  "gptq": true,
+  "transform_type": "wush",
+  "dampen_ratio": 0.01,
+  "activation_quantile": null,
+  "cpu_offload_modules": true,
+  "cpu_offload_activations": true,
+  "dataset_name_or_path": "fineweb-edu",
+  "sequence_length": 2048,
+  "num_sequences": 128,
+  "save_path": null,
+  "load_path": null,
+  "max_shard_size": 5368709120,
+  "eval_perplexity": true,
+  "eval_openllm": false,
+  "eval_platinumbench": false,
+  "lm_eval_tasks": [
+   "mmlu_cot_llama",
+   "mmlu",
+   "humaneval",
+   "humaneval_instruct",
+   "gsm8k_llama",
+   "hellaswag",
+   "winogrande"
+  ],
+  "lm_eval_batch_size": "auto",
+  "lm_eval_batch_size_mmlu_gsm8k": "auto",
+  "disable_thinking": true
+ },
+ "calibration": "fineweb-edu: 128 seqs x 2048 tokens (WUSH get_data, seed 42; fineweb-edu sample-10BT streaming shuffle(seed=42,buffer=1000), docs >= 2048 tokens, random crop)",
+ "ppl_chunks": null,
+ "quant_sec": 1737.8336837291718,
+ "n_quantlinear": 252,
+ "wikitext2_ppl": 10.424946603414345,
+ "ppl_sec": 382.3629720211029,
+ "lm_eval": {
+  "arc_challenge": {
+   "acc": 0.5298634812286689,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.5452218430034129,
+   "acc_norm_stderr": "N/A"
+  },
+  "arc_easy": {
+   "acc": 0.8118686868686869,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7904040404040404,
+   "acc_norm_stderr": "N/A"
+  },
+  "hellaswag": {
+   "acc": 0.5514837681736706,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7275443138816968,
+   "acc_norm_stderr": "N/A"
+  },
+  "piqa": {
+   "acc": 0.7524483133841132,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.763873775843308,
+   "acc_norm_stderr": "N/A"
+  },
+  "winogrande": {
+   "acc": 0.6661404893449092,
+   "acc_stderr": "N/A"
+  }
+ },
+ "lm_eval_main": {
+  "arc_challenge": 0.5452218430034129,
+  "arc_easy": 0.7904040404040404,
+  "hellaswag": 0.7275443138816968,
+  "piqa": 0.763873775843308,
+  "winogrande": 0.6661404893449092
+ },
+ "avg5": 0.6986368924954734,
+ "lm_eval_sec": 8086.146209001541,
+ "runtime_sec": 10209.228871583939
+}

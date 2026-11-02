@@ -1,0 +1,7 @@
+{
+ "model": "blt-1b",
+ "hf": "itazap/blt-1b-hf",
+ "n_linear": 285,
+ "bf16": 0.8387260659176238,
+ "global:e2m1_had": 0.8576712122546848
+}

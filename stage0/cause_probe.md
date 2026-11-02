@@ -1,0 +1,8 @@
+fwd_x|I          SQNR E2M1 20.85 UNIF 20.01 LM 21.71 | crest p50 2.18 | LM grid [0.0, 0.4, 0.99, 1.71, 2.53, 3.47, 4.58, 6.0]
+fwd_x|H          SQNR E2M1 20.08 UNIF 22.53 LM 22.69 | crest p50 2.03 | LM grid [0.0, 0.74, 1.49, 2.28, 3.12, 4.03, 4.99, 6.0]
+fwd_w|I          SQNR E2M1 20.54 UNIF 21.33 LM 21.98 | crest p50 2.08 | LM grid [0.0, 0.65, 1.33, 2.04, 2.82, 3.69, 4.71, 6.0]
+fwd_w|H          SQNR E2M1 20.52 UNIF 21.40 LM 22.01 | crest p50 2.07 | LM grid [0.0, 0.67, 1.35, 2.06, 2.84, 3.71, 4.73, 6.0]
+dgrad_dy|I       SQNR E2M1 20.83 UNIF 20.70 LM 21.83 | crest p50 2.23 | LM grid [0.0, 0.53, 1.16, 1.88, 2.69, 3.6, 4.66, 6.0]
+dgrad_dy|H       SQNR E2M1 20.30 UNIF 22.14 LM 22.41 | crest p50 2.01 | LM grid [0.0, 0.73, 1.46, 2.23, 3.03, 3.93, 4.9, 6.0]
+wgrad_dyT|I      SQNR E2M1 21.44 UNIF 19.79 LM 22.10 | crest p50 2.69 | LM grid [0.0, 0.36, 0.87, 1.51, 2.28, 3.25, 4.45, 6.0]
+wgrad_dyT|H      SQNR E2M1 20.32 UNIF 23.25 LM 23.30 | crest p50 1.92 | LM grid [0.0, 0.79, 1.59, 2.41, 3.26, 4.16, 5.09, 6.0]

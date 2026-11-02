@@ -1,0 +1,108 @@
+{
+ "model": "olmoe-1b-7b",
+ "hf": "allenai/OLMoE-1B-7B-0125",
+ "method": "sq_46",
+ "ncal": 8,
+ "Tcal": 1024,
+ "alphas": {
+  "0": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "1": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "2": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "3": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "4": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "5": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "6": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "7": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "8": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "9": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "10": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "11": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "12": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "13": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "14": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  },
+  "15": {
+   "attn_in": 0.5,
+   "o": 0.5,
+   "moe_in": 0.5,
+   "down_mean": 0.5
+  }
+ },
+ "quant_sec": 8.414353370666504,
+ "wikitext2_ppl": 7.146707227539441,
+ "ppl_sec": 255.62757444381714
+}

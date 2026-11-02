@@ -1,0 +1,54 @@
+{
+ "model": "qwen3-8b",
+ "method": "e2m1_46",
+ "fmt": "nvfp4_g32",
+ "gptq": false,
+ "hf": "Qwen/Qwen3-8B",
+ "args": {
+  "hf": "Qwen/Qwen3-8B",
+  "tag": "qwen3-8b",
+  "method": "e2m1_46",
+  "out": "out/qwen3-8b_nvfp4_g32_e2m1_46.json",
+  "ncal": 8,
+  "Tcal": 1024,
+  "steps": 250,
+  "limit": null,
+  "fmt": "nvfp4_g32",
+  "gptq": false,
+  "bs": 8,
+  "cal": "dclm_val_head2000.jsonl",
+  "tasks": "hellaswag,arc_easy,arc_challenge,piqa,winogrande"
+ },
+ "wikitext2_ppl": 10.293007629626509,
+ "lm_eval": {
+  "arc_challenge": {
+   "acc": 0.5119453924914675,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.5162116040955631,
+   "acc_norm_stderr": "N/A"
+  },
+  "arc_easy": {
+   "acc": 0.7916666666666666,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7655723905723906,
+   "acc_norm_stderr": "N/A"
+  },
+  "hellaswag": {
+   "acc": 0.5505875323640709,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7283409679346744,
+   "acc_norm_stderr": "N/A"
+  },
+  "piqa": {
+   "acc": 0.7486398258977149,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.750272034820457,
+   "acc_norm_stderr": "N/A"
+  },
+  "winogrande": {
+   "acc": 0.6866614048934491,
+   "acc_stderr": "N/A"
+  }
+ },
+ "avg5": 0.6894116804633068
+}

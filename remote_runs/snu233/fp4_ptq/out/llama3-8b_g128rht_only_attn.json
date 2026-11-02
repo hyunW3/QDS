@@ -1,0 +1,43 @@
+{
+ "model": "llama3-8b",
+ "method": "e2m1_h",
+ "fmt": "nvfp4_g128",
+ "gptq": false,
+ "hf": "meta-llama/Meta-Llama-3-8B",
+ "args": {
+  "hf": "meta-llama/Meta-Llama-3-8B",
+  "tag": "llama3-8b",
+  "method": "e2m1_h",
+  "out": "out/llama3-8b_g128rht_only_attn.json",
+  "ncal": 8,
+  "Tcal": 1024,
+  "steps": 250,
+  "limit": 0.01,
+  "ngptq": 128,
+  "fmt": "nvfp4_g128",
+  "gptq": false,
+  "ste": "fp32",
+  "seed": 0,
+  "rht": true,
+  "sel": false,
+  "rot_only": "q_proj,k_proj,v_proj,o_proj",
+  "actorder": false,
+  "wsearch": false,
+  "alpha": 0.5,
+  "save_scales": "",
+  "let_steps": 100,
+  "bs": 8,
+  "cal": "dclm_val_head2000.jsonl",
+  "tasks": "piqa"
+ },
+ "wikitext2_ppl": 7.497137014530606,
+ "lm_eval": {
+  "piqa": {
+   "acc": 0.7894736842105263,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7894736842105263,
+   "acc_norm_stderr": "N/A"
+  }
+ },
+ "avg5": 0.7894736842105263
+}

@@ -1,0 +1,19 @@
+{
+ "model": "olmoe-1b-7b",
+ "hf": "allenai/OLMoE-1B-7B-0125",
+ "method": "ocs_46",
+ "rht": false,
+ "ncal": 8,
+ "Tcal": 1024,
+ "quant_sec": 9.31671142578125,
+ "wikitext2_ppl": 7.134775919456186,
+ "ppl_sec": 284.8758752346039,
+ "lm_eval_main": {
+  "hellaswag": 0.7658832901812388,
+  "arc_easy": 0.7457912457912458,
+  "arc_challenge": 0.4872013651877133,
+  "piqa": 0.7758433079434167,
+  "winogrande": 0.6732438831886346
+ },
+ "avg5": 0.6895926184584498
+}

@@ -1,0 +1,4 @@
+Qwen/Qwen3-8B qwen3-8b diag_46_h nvfp4 0
+meta-llama/Meta-Llama-3-8B llama3-8b e2m1_h nvfp4 1
+meta-llama/Llama-3.1-8B llama31-8b e2m1_h nvfp4 1
+Qwen/Qwen3-8B qwen3-8b e2m1_h nvfp4 1

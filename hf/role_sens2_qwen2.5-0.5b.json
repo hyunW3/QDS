@@ -1,0 +1,116 @@
+{
+ "model": "qwen2.5-0.5b",
+ "det": {
+  "dloss": 0.0,
+  "grad_relerr": 0.0088769206777215,
+  "grad_cos": 0.9999600052833557
+ },
+ "fwd": {
+  "fwd_x FP4": {
+   "dloss": 0.07175415754318237,
+   "grad_relerr": 0.5801931023597717,
+   "grad_cos": 0.8566991090774536
+  },
+  "fwd_w FP4": {
+   "dloss": 0.09234148263931274,
+   "grad_relerr": 0.8860169649124146,
+   "grad_cos": 0.6999107599258423
+  },
+  "both FP4": {
+   "dloss": 0.17340117692947388,
+   "grad_relerr": 0.9527827501296997,
+   "grad_cos": 0.6569520235061646
+  },
+  "fwd_x FP8, fwd_w FP4": {
+   "dloss": 0.09637141227722168,
+   "grad_relerr": 0.873294472694397,
+   "grad_cos": 0.7045651078224182
+  },
+  "fwd_x FP4, fwd_w FP8": {
+   "dloss": 0.08010458946228027,
+   "grad_relerr": 0.6311293840408325,
+   "grad_cos": 0.8296183347702026
+  },
+  "both FP8": {
+   "dloss": 0.004646718502044678,
+   "grad_relerr": 0.23476919531822205,
+   "grad_cos": 0.9725856184959412
+  }
+ },
+ "bwd_det": {
+  "dloss": 0.0,
+  "grad_relerr": 0.009099387563765049,
+  "grad_cos": 0.9999580979347229
+ },
+ "bwd_one_fp4": {
+  "dgrad_dy": {
+   "dloss": 0.0,
+   "grad_relerr": 0.16663748025894165,
+   "grad_cos": 0.9860352873802185
+  },
+  "dgrad_wT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.2017899751663208,
+   "grad_cos": 0.9795898795127869
+  },
+  "wgrad_dyT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.1013260930776596,
+   "grad_cos": 0.9948609471321106
+  },
+  "wgrad_xT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.06482934206724167,
+   "grad_cos": 0.9979076385498047
+  }
+ },
+ "bwd_all_fp4_but_one_fp8": {
+  "dgrad_dy": {
+   "dloss": 0.0,
+   "grad_relerr": 0.23598790168762207,
+   "grad_cos": 0.9722041487693787
+  },
+  "dgrad_wT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.21179741621017456,
+   "grad_cos": 0.9774779081344604
+  },
+  "wgrad_dyT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.2766003906726837,
+   "grad_cos": 0.961395263671875
+  },
+  "wgrad_xT": {
+   "dloss": 0.0,
+   "grad_relerr": 0.28539761900901794,
+   "grad_cos": 0.9589804410934448
+  }
+ },
+ "bwd_combo": {
+  "all bwd FP4": {
+   "dloss": 0.0,
+   "grad_relerr": 0.28955215215682983,
+   "grad_cos": 0.9577403664588928
+  },
+  "all bwd FP8": {
+   "dloss": 0.0,
+   "grad_relerr": 0.06070837378501892,
+   "grad_cos": 0.9981550574302673
+  },
+  "dgrad FP8, wgrad FP4": {
+   "dloss": 0.0,
+   "grad_relerr": 0.1320694386959076,
+   "grad_cos": 0.9912780523300171
+  },
+  "dgrad FP4, wgrad FP8": {
+   "dloss": 0.0,
+   "grad_relerr": 0.2630341947078705,
+   "grad_cos": 0.9649956822395325
+  },
+  "gradients(dY) FP8, W/X FP4": {
+   "dloss": 0.0,
+   "grad_relerr": 0.21417778730392456,
+   "grad_cos": 0.9770442843437195
+  }
+ }
+}

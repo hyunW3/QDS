@@ -1,0 +1,88 @@
+{
+ "model": "llama3-8b",
+ "hf": "meta-llama/Meta-Llama-3-8B",
+ "fmt": "mxfp4",
+ "method": "WUSH-GPTQ (official, transform=wush)",
+ "flags": "python wush_run.py --tag llama3-8b --out out/llama3-8b_mxfp4_wush_gptq.json -- --model_name_or_path=meta-llama/Meta-Llama-3-8B --format=mxfp4 --gptq=1 --transform_type=wush --num_sequences=128 --sequence_length=2048 --seed=42",
+ "wush_args": {
+  "seed": 42,
+  "log_wandb": false,
+  "model_name_or_path": "meta-llama/Meta-Llama-3-8B",
+  "dtype": "auto",
+  "compile": false,
+  "format": "mxfp4",
+  "gptq": true,
+  "transform_type": "wush",
+  "dampen_ratio": 0.01,
+  "activation_quantile": null,
+  "cpu_offload_modules": true,
+  "cpu_offload_activations": true,
+  "dataset_name_or_path": "fineweb-edu",
+  "sequence_length": 2048,
+  "num_sequences": 128,
+  "save_path": null,
+  "load_path": null,
+  "max_shard_size": 5368709120,
+  "eval_perplexity": true,
+  "eval_openllm": false,
+  "eval_platinumbench": false,
+  "lm_eval_tasks": [
+   "mmlu_cot_llama",
+   "mmlu",
+   "humaneval",
+   "humaneval_instruct",
+   "gsm8k_llama",
+   "hellaswag",
+   "winogrande"
+  ],
+  "lm_eval_batch_size": "auto",
+  "lm_eval_batch_size_mmlu_gsm8k": "auto",
+  "disable_thinking": true
+ },
+ "calibration": "fineweb-edu: 128 seqs x 2048 tokens (WUSH get_data, seed 42; fineweb-edu sample-10BT streaming shuffle(seed=42,buffer=1000), docs >= 2048 tokens, random crop)",
+ "ppl_chunks": null,
+ "quant_sec": 1618.380782365799,
+ "n_quantlinear": 224,
+ "wikitext2_ppl": 7.094669432440242,
+ "ppl_sec": 349.29142141342163,
+ "lm_eval": {
+  "arc_challenge": {
+   "acc": 0.4513651877133106,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.4786689419795222,
+   "acc_norm_stderr": "N/A"
+  },
+  "arc_easy": {
+   "acc": 0.75,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7234848484848485,
+   "acc_norm_stderr": "N/A"
+  },
+  "hellaswag": {
+   "acc": 0.5771758613821948,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7661820354511053,
+   "acc_norm_stderr": "N/A"
+  },
+  "piqa": {
+   "acc": 0.7731229597388466,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7894450489662677,
+   "acc_norm_stderr": "N/A"
+  },
+  "winogrande": {
+   "acc": 0.7134964483030781,
+   "acc_stderr": "N/A"
+  }
+ },
+ "lm_eval_main": {
+  "arc_challenge": 0.4786689419795222,
+  "arc_easy": 0.7234848484848485,
+  "hellaswag": 0.7661820354511053,
+  "piqa": 0.7894450489662677,
+  "winogrande": 0.7134964483030781
+ },
+ "avg5": 0.6942554646369643,
+ "lm_eval_sec": 7728.3012573719025,
+ "runtime_sec": 9698.407275915146
+}

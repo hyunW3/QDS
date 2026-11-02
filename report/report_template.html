@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FP4 축소 편향 Stage 0 보고서</title>
+<style>
+:root{
+  --bg:#fcfcfb; --card:#ffffff; --ink:#0b0b0b; --ink2:#52514e; --muted:#7a7974; --line:#e4e3df;
+  --e2m1:#2a78d6; --unif:#eb6834; --sr:#1baf7a; --accent-bg:#f2f6fc; --code-bg:#f4f3f0;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#141413; --card:#1e1e1d; --ink:#f0efec; --ink2:#c3c2b7; --muted:#9a998f; --line:#33322f;
+    --e2m1:#3987e5; --unif:#d95926; --sr:#199e70; --accent-bg:#1b2533; --code-bg:#262624; color-scheme:dark; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+main{max-width:920px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:1.9rem;line-height:1.25;margin:0 0 .4rem;letter-spacing:-.01em}
+h2{font-size:1.3rem;margin:3rem 0 .8rem;padding-top:1rem;border-top:1px solid var(--line)}
+h3{font-size:1.05rem;margin:1.6rem 0 .4rem}
+p,li{color:var(--ink)}
+.sub{color:var(--ink2);margin:0 0 1.6rem}
+.meta{color:var(--muted);font-size:.85rem}
+.tldr{background:var(--accent-bg);border-left:4px solid var(--e2m1);padding:16px 20px;border-radius:6px;margin:1.4rem 0}
+.tldr p{margin:.2rem 0 .6rem;font-weight:600}
+.tldr ul{margin:.2rem 0 0;padding-left:1.2rem}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:1.4rem 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.kpi .v{font-size:1.3rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--ink2);font-size:.85rem;line-height:1.4}
+figure{margin:1.2rem 0 1.6rem;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px}
+figure img{display:block;width:100%;height:auto}
+figcaption{color:#52514e;font-size:.85rem;margin-top:8px;line-height:1.5}
+.tw{overflow-x:auto;margin:1rem 0}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap}
+th{color:var(--ink2);font-weight:600}
+td.n{text-align:right}
+.tag{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:8px;overflow-x:auto;line-height:1.5}
+.note{color:var(--ink2);font-size:.9rem}
+.callout{border:1px solid var(--line);border-radius:8px;padding:12px 16px;background:var(--card);margin:1rem 0}
+.good{color:var(--sr);font-weight:600}.bad{color:var(--unif);font-weight:600}
+nav.toc{font-size:.9rem;color:var(--ink2);margin:1rem 0 0}
+nav.toc a{color:var(--e2m1);text-decoration:none;margin-right:14px;white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+<h1>FP4 축소 편향(Shrinkage Bias), 실제 텐서로 검증하기</h1>
+<p class="sub">arXiv 2606.20381 <em>“Rethinking Shrinkage Bias in LLM FP4 Pretraining”</em> 재현 실험 Stage 0: 학습 없이 실제 LLM 텐서로 측정한 결과</p>
+<p class="meta">2026-10-21 · gpusvr0908 (RTX A5000 ×4) · lingua llama 100M / 300M / 760M · <code>./</code></p>
+
+<div class="callout"><b>업데이트 기록</b>
+<ul>
+<li>2026-10-27: ㉒ 추가. 오차 구조와 민감도 분석, seed 3개 반복, 베이스라인(SQ α, SQ·AWQ 층별 α 탐색, LET 원본과 shift 없는 버전), 형식 인지 STE, shift 원인 분석, OLMo-2 접기, 커널 비용, FP4 학습의 지연·학습 스케일을 정리했습니다.</li>
+<li>2026-10-26: ㉑에 공식 MR-GPTQ(FP-Quant) 베이스라인과 대각 + 4/6 + H 변형을 추가했습니다. 두 형식, 세 모델 모두에서 우리 방법의 PPL이 MR-GPTQ보다 낮습니다.</li>
+<li>2026-10-25: ㉑ 8B 모델 W4A4 PTQ(Llama-3/3.1-8B, Qwen3-8B × NVFP4/NVFP4-G32/MXFP4 × 변환 8종 × RTN/GPTQ)를 추가했습니다. ⑯에 dY SR arm과 UFP4·E2M1-4/6+smoothing+SR의 seed 2개 결과를 반영했습니다.</li>
+<li>2026-10-23 (7): ⑳ Blackwell(RTX PRO 6000, sm_120)에서 E2M1/NVFP4 추론 지연시간을 측정했습니다. GEMM 단위와 모델 전체 forward(prefill·decode)를 모두 쟀습니다.</li>
+<li>2026-10-23 (4): ⑭에 OLMo의 공유·접기 가능·LET(shift 없음) 결과와, 초기값과 학습 목표를 나눠 본 결과를 추가했습니다. LET가 더 좋아 보였던 것은 일관된 현상이 아니었습니다.</li>
+<li>2026-10-23 (3): ⑱ MR-GPTQ(ICLR 2026) Lemma 2와의 관계를 추가했습니다. crossover가 일어나는 블록 크기가 격자마다 다릅니다(E2M1은 G=32, 균일 격자는 G=4).</li>
+<li>2026-10-23 (2): ⑭에 OLMo SmoothQuant/LET 결과, 접기 가능 형태와 실제 접어 넣기 검증, backward GEMM smoothing 결과를 추가했습니다.</li>
+<li>2026-10-23: ⑪~⑰을 추가했습니다(공개 모델 재검증, RHT 역할 분리, outlier·smoothing, 학습형 채널 스케일과 LET 비교, FP8 위치 선택, Stage 1 학습, byte-level 비교). 아직 진행 중: dY에 SR을 쓰는 학습 arm.</li>
+<li>2026-10-22: ①~⑩ (Stage 0 분석, 원인 분석, RHT 변형, FLIP).</li>
+</ul></div>
+<div class="tldr">
+<p>요약: 논문의 SQNR 결과는 재현되지만, 그 원인이 shrinkage bias라는 설명은 데이터로 뒷받침되지 않습니다.</p>
+<ul>
+<li>RHT 이후 균일 4bit 격자가 E2M1보다 SQNR이 <b>1.5~3 dB</b> 높습니다. 논문 결과와 같습니다.</li>
+<li>E2M1의 shrinkage는 텐서당 <b>0.2~0.5%</b>로 작고, RHT를 넣으면 <b>줄어들거나 확대 쪽으로 뒤집힙니다</b>. 논문 설명과 반대 방향입니다.</li>
+<li>bias를 per-tensor α로 보정해도 GEMM 출력 SQNR은 <b>±0.05 dB</b>만 바뀝니다. 확률 가중 SR은 bias는 없애지만 <b>−1.8 dB</b>를 잃습니다.</li>
+<li>따라서 E2M1과 균일 격자의 격차는 bias가 아니라 <b>격자 해상도(MSE)</b> 차이로 보입니다.</li>
+<li><b>그렇다면 원인은?</b> 격자 레벨 위치와 블록 정규화 후 값 분포가 맞지 않는 것입니다. RHT 후에는 E2M1 오차의 65~76%가 레벨 간격이 2인 상위 bin(4, 6)에서 나오고, 데이터에 맞춘 최적 격자는 거의 균일합니다(<a href="#r8">⑧</a>).</li>
+<li><b>RHT를 E2M1에 맞게 바꿀 수 있을까?</b> 회전 13종을 시험했지만 어떤 회전도 “회전 없음”을 넘지 못했습니다. 상위 bin 문제는 블록별 스케일 선택(absmax→4 또는 6)으로 풀렸고, 회전 없는 E2M1-4/6이 UFP4에 0.2~0.6 dB까지 다가갔습니다(<a href="#r9">⑨</a>).</li>
+<li><b>격자를 뒤집으면?</b> E2M1을 absmax 기준으로 뒤집기만 하면 −4~−6 dB로 크게 손해입니다. 하지만 블록마다 일반·뒤집기와 absmax→4·6을 고르면(4가지), RHT와 함께 쓸 때 E2M1이 UFP4와 0.15 dB 이내로 같아집니다(<a href="#r10">⑩</a>).</li>
+<li><b>(10-23 추가) 공개 모델 PTQ</b>: 채널별 스케일을 E2M1 오차 기준으로 학습하는 방법(학습형 smoothing, LET 계열)이 UFP4보다 BPB 손해를 30~40% 줄였습니다(⑭). <b>실제 FP4 학습</b>에서는 UFP4가 E2M1 + H16보다 낫다는 논문의 주장이 재현됐습니다. 한편 RHT를 빼고 다른 기법으로 대체한 설정들은 dY에 SR을 쓰지 않았다는 차이가 섞여 있어 아직 결론을 내리지 않았습니다(⑯).</li>
+<li>E1M2와 <b>대칭 INT4(±7)는 비트 단위로 같은 양자화기</b>입니다. −8을 쓰는 비대칭 INT4는 <b>2~4% 축소</b>되지만, RHT 이후 SQNR은 여전히 E2M1보다 높습니다.</li>
+</ul>
+</div>
+
+<div class="kpis">
+<div class="kpi"><div class="v" style="color:var(--unif)">+1.25 ~ +1.85 dB</div><div class="l">E2M1 → 균일 격자 교체 시 GEMM 출력 SQNR 변화 (RHT 적용)</div></div>
+<div class="kpi"><div class="v">≈ 0.00 dB</div><div class="l">per-tensor α 보정(bias 제거) 효과 (−0.04 ~ +0.02)</div></div>
+<div class="kpi"><div class="v" style="color:var(--sr)">−1.8 dB</div><div class="l">dY에 stochastic rounding 적용 시 손실 (DGRAD / WGRAD)</div></div>
+<div class="kpi"><div class="v">0.996 → 1.000</div><div class="l">300M fwd X의 E2M1 α, RHT 전 → 후. 1 미만이 shrinkage</div></div>
+</div>
+
+<nav class="toc">
+<a href="#bg">배경</a><a href="#setup">설정</a><a href="#methods">방법 정의</a><a href="#r1">① SQNR 재현</a><a href="#r2">② bias 크기</a><a href="#r3">③ bias의 구조</a><a href="#r4">④ dB 예산</a><a href="#r5">⑤ 모델 간 일관성</a><a href="#r6">⑥ 합성 outlier</a><a href="#r7">⑦ E1M2 vs INT4</a><a href="#r8">⑧ 진짜 원인</a><a href="#r9">⑨ RHT를 바꾸면?</a><a href="#r10">⑩ 격자 뒤집기</a><a href="#r11">⑪ 공개 모델</a><a href="#r12">⑫ RHT 역할 분리</a><a href="#r13">⑬ outlier·smoothing</a><a href="#r14">⑭ 학습형 스케일</a><a href="#r15">⑮ FP8 위치 선택</a><a href="#r16">⑯ Stage 1 학습</a><a href="#r17">⑰ byte-level·형식</a><a href="#r18">⑱ MR-GPTQ와의 관계</a><a href="#r20">⑳ 추론 지연시간</a><a href="#r21">㉑ 8B PTQ</a><a href="#r22">㉒ motivation 검증</a><a href="#concl">결론</a>
+</nav>
+
+<h2 id="bg">배경: 논문의 주장과 우리의 질문</h2>
+<p>NVFP4/MXFP4가 쓰는 E2M1 격자의 크기 레벨은 <code>{0, 0.5, 1, 1.5, 2, 3, 4, 6}</code>으로 간격이 균일하지 않습니다. 레벨 2를 예로 들면, 왼쪽 반폭은 0.25이고 오른쪽 반폭은 0.5입니다. bin 안에서 값이 균일하게 분포한다고 가정하면 round-to-nearest의 조건부 오차는 <code>(ℓ − r)/2</code>로 음수가 되고, 값이 체계적으로 작아집니다(shrinkage). 논문은 이것을 <b>Shrinkage Bias</b>라고 부릅니다. 이 bias가 레이어를 거치며 곱셈적으로 누적되고 RHT가 이를 증폭한다는 것이 논문의 주장이며, 해결책으로 균일 격자(E1M2/INT4)를 쓰는 <b>UFP4</b>를 제안합니다.</p>
+<p>우리의 질문은 이렇습니다. 문제가 정말 bias라면, 격자를 바꾸지 않고 <b>unbiased 추정기로 보정</b>하면 되지 않을까요? 후보는 두 가지입니다.</p>
+<ul>
+<li><b>확률 가중 SR</b>: 좌우 bin 폭에 비례해 올림 확률을 줍니다. 이는 표준 stochastic rounding과 같고, 기대값 기준으로 unbiased합니다.</li>
+<li><b>per-tensor α 보정</b>: GEMM 출력에 1/α를 곱합니다. FP32 epilogue scale에 흡수되므로 비용이 거의 없습니다.</li>
+</ul>
+<p>이를 판단하려면 먼저 실제 텐서에서 bias가 얼마나 큰지, 그리고 E2M1과 균일 격자의 격차 중 얼마가 bias 때문인지를 측정해야 합니다.</p>
+
+<h2 id="setup">실험 설정</h2>
+<div class="tw"><table>
+<tr><th>항목</th><th>내용</th></tr>
+<tr><td>모델</td><td>lingua llama 100M (step 4400), 300M (13000), 760M (26600), 760M 초기 (7980)</td></tr>
+<tr><td>데이터</td><td>DCLM val, batch 4 × 1024 tokens, fwd+bwd 1회, bf16 autocast. output head는 제외</td></tr>
+<tr><td>GEMM</td><td>블록 내 모든 Linear의 FPROP <code>X·Wᵀ</code>, DGRAD <code>dY·W</code>, WGRAD <code>dYᵀ·X</code></td></tr>
+<tr><td>블록</td><td>각 GEMM의 reduction 축을 따라 1×16 블록, absmax 스케일</td></tr>
+<tr><td>격자</td><td><span class="tag" style="background:var(--e2m1)"></span>E2M1 · <span class="tag" style="background:var(--unif)"></span>균일 E1M2 (대칭 INT4와 동일함, <a href="#r7">⑦</a> 참고)</td></tr>
+<tr><td>변환</td><td>없음, 또는 16×16 random Hadamard (두 operand가 같은 sign 공유)</td></tr>
+<tr><td>스케일</td><td>FP32 블록 스케일 (논문 Table 1). 보조 실험으로 E4M3 블록 스케일 + FP32 global (NVFP4)</td></tr>
+<tr><td>반올림</td><td>RTN, 또는 dY operand에만 <span class="tag" style="background:var(--sr)"></span>SR (논문 레시피와 동일)</td></tr>
+<tr><td>지표</td><td>SQNR = −10·log₁₀ NMSE; α = ⟨Q(A),A⟩/‖A‖² (1 미만이면 shrinkage); b_G = mean(q − t); GEMM 출력 SQNR과 1/α 보정 후 SQNR</td></tr>
+</table></div>
+
+<h2 id="methods">방법 정의: 양자화기, 변환, 채널 스케일(QDS 포함), GPTQ, 평가 <span class="note">(2026-10-30)</span></h2>
+<p>8B PTQ(<code>ptq8b/ptq8b_v3.py</code>, <code>ptq8b/ptq8b_v4_snu188.py</code>, 옵션 B용 <code>ptq8b_b.py</code>)와 OLMoE PTQ(<code>moe_ptq.py</code>), 레이어 단위 probe(<code>placement_test.py</code>, <code>scale46_test.py</code>)에 쓴 방법을 코드 기준으로 정리했습니다. 아래에서 A는 activation(또는 첫 operand), W는 weight, K는 reduction 축입니다.</p>
+
+<h3>1. 양자화기: NVFP4</h3>
+<ul>
+<li><b>블록</b>: reduction 축 K를 따라 1×16 블록. activation은 토큰(행)마다, weight는 출력 채널(행)마다 블록을 나눕니다.</li>
+<li><b>원소</b>: E2M1, 크기 레벨 {0, 0.5, 1, 1.5, 2, 3, 4, 6}과 부호. 인접 레벨의 중점에서 반올림하고(RTN), 6을 넘는 값은 6으로 자릅니다.</li>
+<li><b>블록 스케일</b>: s<sub>b</sub> = amax<sub>b</sub> / m (기본 m = 6). s<sub>b</sub>는 E4M3(최대 448)로 반올림하고, 텐서 전체에 FP32 스케일 g = max<sub>b</sub> amax<sub>b</sub> / (m<sub>min</sub>·448)을 곱합니다. m<sub>min</sub>은 아래 스케일 규칙의 가장 작은 후보입니다.</li>
+<li><b>적용 범위</b>: 디코더의 모든 Linear(q, k, v, o, gate, up, down)를 W4A4로 양자화합니다. embedding, lm_head, norm은 BF16입니다. weight는 한 번만 양자화하고, activation은 forward마다 즉석에서 양자화합니다. 역양자화된 두 operand를 BF16으로 곱합니다(이 값들에서는 정확).</li>
+<li><b>대조 형식</b>: NVFP4-G32(블록 32, E4M3 스케일)와 MXFP4(블록 32, E8M0 스케일: 2<sup>⌊log₂ amax⌋ − 2</sup>, 6을 넘는 값은 자름).</li>
+</ul>
+
+<h3>2. 블록 스케일 규칙 (m의 선택)</h3>
+<div class="tw"><table>
+<tr><th>이름</th><th>규칙</th><th>비고</th></tr>
+<tr><td>@6 (기본 E2M1)</td><td>m = 6: 블록 최댓값이 레벨 6에 정확히 놓임</td><td>NVIDIA 기본</td></tr>
+<tr><td>4/6 (Four Over Six)</td><td>블록마다 m ∈ {6, 4} 중 블록 MSE가 작은 쪽</td><td>Cook et al. 2025. MXFP4에서는 지수 e와 e+1 중 선택</td></tr>
+<tr><td>opt (ScaleSweep식)</td><td>블록마다 m ∈ {3, 4, 5, 6, 7, 8} 중 MSE 최소(8B, 옵션 B). 레이어 단위 probe는 {3, 3.5, …, 6.5, 7, 8}</td><td>m &gt; 6이면 큰 값을 6으로 자름(클리핑), m &lt; 6이면 상위 레벨을 비워 둠. 4/6은 opt의 부분집합</td></tr>
+</table></div>
+<p>4/6과 opt는 activation에도 즉석에서 적용합니다(후보마다 한 번씩 양자화한 뒤 블록별로 고름). 하드웨어에서는 양자화 커널의 비용만 늘고 GEMM은 그대로입니다.</p>
+
+<h3>3. 회전과 격자 변환</h3>
+<div class="tw"><table>
+<tr><th>이름</th><th>정의</th></tr>
+<tr><td>H16</td><td>K축 16개 단위의 블록 Hadamard H/4를 두 operand에 함께 곱합니다(A H, W H, 곱은 불변). 그 뒤 NVFP4로 양자화하고 역회전합니다.</td></tr>
+<tr><td>RHT16</td><td>H16 앞에 K축 무작위 부호 diag(±1)를 곱합니다(K마다 seed 1234+K로 고정). 양자화, QDS 학습, GPTQ 모든 경로에 같은 부호를 씁니다. method comparison 표의 회전 행은 RHT16입니다.</td></tr>
+<tr><td>UFP4</td><td>균일 E1M2 격자(크기 {0, 0.25, …, 1.75}, 대칭 INT4 −7…7과 같음) + RHT16. arXiv 2606.20381의 제안 형식이며, 네이티브 NVFP4 하드웨어 경로가 아닙니다.</td></tr>
+<tr><td>KLT / block-KLT</td><td>레이어 단위 probe 전용. activation 공분산의 고유벡터로 회전(전체 또는 16×16 블록마다).</td></tr>
+</table></div>
+
+<h3>4. 채널 스케일 계열 (블록 안을 섞지 않음, 앞 weight에 접어 넣음)</h3>
+<p>모든 방법은 같은 형태 Y = (X / s)(W·s)ᵀ를 씁니다. 같은 입력을 쓰는 Linear 묶음마다 양수 벡터 s(길이 = 입력 채널 수)를 하나씩 두고, 다음 위치에 접어 넣어 추론 비용이 0입니다.</p>
+<div class="tw"><table>
+<tr><th>묶음</th><th>s를 나누는 곳 (X / s)</th><th>s를 곱하는 곳 (W·s)</th></tr>
+<tr><td>{q, k, v}</td><td><code>input_layernorm.weight</code></td><td>q, k, v_proj의 입력 열</td></tr>
+<tr><td>{gate, up}</td><td><code>post_attention_layernorm.weight</code></td><td>gate, up_proj의 입력 열</td></tr>
+<tr><td>o</td><td><code>v_proj</code>의 출력 행(+bias). GQA 때문에 KV head마다 s를 묶음</td><td>o_proj의 입력 열</td></tr>
+<tr><td>down</td><td><code>up_proj</code>의 출력 행</td><td>down_proj의 입력 열</td></tr>
+</table></div>
+<p>s를 정하는 방법만 다릅니다.</p>
+<div class="tw"><table>
+<tr><th>이름 (코드)</th><th>s를 정하는 방법</th><th>보정 데이터 사용</th></tr>
+<tr><td>SmoothQuant (<code>sq_46</code>)</td><td>s<sub>k</sub> = max|X<sub>:,k</sub>|<sup>α</sup> / max|W<sub>:,k</sub>|<sup>1−α</sup>, α = 0.5(0.3, 0.7도 확인). o 묶음은 KV head 안에서 평균</td><td>채널 최댓값만</td></tr>
+<tr><td>SmoothQuant-α 탐색 (<code>sqgrid_46</code>, "tuned SQ")</td><td>같은 형태, α ∈ {0, 0.1, …, 1}을 묶음마다 W4A4 출력 오차로 선택</td><td>출력 오차</td></tr>
+<tr><td>AWQ 형태 (<code>awq_46</code>)</td><td>s<sub>k</sub> = mean|X<sub>:,k</sub>|<sup>α</sup>(기하 정규화), α ∈ {0, 0.05, …, 1}을 W4A4 출력 오차로 선택. 원래 AWQ는 weight-only이므로 W4A4용으로 고친 것</td><td>출력 오차</td></tr>
+<tr><td>OmniQuant-LET (<code>let_46</code>, <code>letns_46</code>)</td><td>재구현. scale(초기값 SQ α=0.5) + shift(초기값 채널 중앙값, attention/MLP 입력만)를 디코더 블록 출력 MSE로 학습(Adam lr 5e-3, 100 step). shift는 추론 때 x−d를 양자화하고 W·d를 bias로 더함. <code>letns</code>는 shift 없음</td><td>블록 출력 오차</td></tr>
+<tr><td><b>QDS</b> (<code>diag</code>), <b>QDS-4/6</b> (<code>diag_46</code>)</td><td>아래 5절</td><td>GEMM 출력 오차</td></tr>
+</table></div>
+<p>방법 이름 끝의 <code>_46</code>은 평가할 때의 블록 스케일 규칙이 4/6이라는 뜻입니다.</p>
+
+<h3>5. QDS (Quantization-aware Diagonal Scaling)</h3>
+<ul>
+<li><b>목적함수</b>: 묶음 안의 Linear들에 대해 FP4 GEMM 출력 상대 오차의 합을 최소화합니다.<br>
+L(s) = Σ<sub>W∈묶음</sub> ‖ Q(X / s) · Q(W·s)ᵀ − X Wᵀ ‖² / ‖X Wᵀ‖²</li>
+<li><b>파라미터</b>: s = exp(v), v = 0(s = 1)에서 시작합니다. o 묶음은 KV head마다 v를 공유합니다.</li>
+<li><b>최적화</b>: Adam(lr 1e-2), 250 step, full batch. 가장 낮은 손실의 s를 씁니다. Q는 straight-through estimator(STE)로 미분합니다.</li>
+<li><b>STE 안의 양자화기</b>: 기본(<code>--ste fp32</code>)은 FP32 블록 스케일 E2M1 @6입니다. 평가 규칙과 무관하므로 QDS, QDS-4/6, QDS-opt는 같은 s를 쓰고 평가 규칙만 다릅니다. <code>--ste fmt</code>는 평가 양자화기(E4M3 스케일, 4/6 등)를 그대로 씁니다(fp32 대비 QDS-4/6은 −0.01 ~ −0.08 ppl, QDS는 +0.02 ~ +0.04 ppl로 일관된 이득은 없음).</li>
+<li><b>보정 데이터</b>: DCLM val 8 × 1024 토큰. <code>--seed n</code>은 보정 창을 n·(8+128)개만큼 뒤로 옮깁니다(seed 간 차이 약 0.02 ppl).</li>
+<li><b>순서</b>: 레이어를 앞에서부터 하나씩 처리합니다. 각 레이어의 입력은 이전 레이어들을 접은 BF16 모델에서 얻습니다(접기는 함수를 바꾸지 않으므로 BF16 출력은 동일).</li>
+<li><b>레이어 단위 probe의 QDS</b>(표 tab:fixes, ㉔): 학습 대신 SmoothQuant 형태의 α를 평가 배치 위에서 출력 오차로 고른 oracle입니다. 8B에서는 α 탐색과 STE 학습의 결과가 같았습니다(6.691 vs 6.694).</li>
+<li><b>MoE (OLMoE, <code>moe_ptq.py</code>)</b>: STE 학습 대신 SmoothQuant 형태 s = max|X|<sup>α</sup>/max|W|<sup>1−α</sup>의 α ∈ {0, …, 1}을 묶음마다 FP4 GEMM 출력 오차(E2M1, FP32 블록 스케일, @6)로 고릅니다. 묶음은 다음과 같습니다.<ul><li>attn {q,k,v}: <code>input_layernorm</code>에 접습니다.</li><li>o: <code>v_proj</code>에 접습니다.</li><li>MoE 입력: 모든 expert의 gate_up과 router가 s 하나를 공유하고 <code>post_attention_layernorm</code>에 접습니다. router weight가 s를 정확히 흡수하므로 라우팅은 바뀌지 않습니다.</li><li>down: expert마다 s를 따로 두고 그 expert의 up 출력 행에 접습니다.</li></ul></li>
+</ul>
+
+<h3>6. OCS (Outlier Channel Splitting)</h3>
+<p>점수 rms(A<sub>:,k</sub>)·rms(W<sub>:,k</sub>)가 상위 1%인 채널 k를 고릅니다. A의 해당 열을 절반으로 줄이고 A<sub>:,k</sub>/2를 새 열로 덧붙이며, W<sub>:,k</sub>는 복제해 덧붙입니다. 곱은 그대로이고 outlier 크기만 절반이 되며, K가 약 1% 늘어납니다(16의 배수로 패딩). 레이어 단위 probe는 평가 배치에서, OLMoE PTQ는 보정 데이터에서 채널을 고정합니다.</p>
+
+<h3>7. GPTQ</h3>
+<ul>
+<li><b>기본(method comparison 표의 "+GPTQ")</b>: 같은 블록 형식으로 weight를 반올림합니다.
+  <ul>
+  <li>Hessian은 DCLM val 128 × 1024 토큰으로 만들며, 스케일 보정 데이터와 겹치지 않습니다. 8k 토큰으로는 K=14336의 Hessian이 rank가 부족해 과적합합니다.</li>
+  <li>damp 0.01, 열 블록 128, act-order 없음.</li>
+  <li>블록 스케일은 GPTQ가 해당 그룹에 도달할 때 오차가 갱신된 weight에서 정합니다(4/6이면 그 시점에 MSE로 선택). 이를 dynamic groups라고 부릅니다.</li>
+  <li>Hessian은 변환(접기, 회전)된 BF16 모델의 입력으로 계산합니다. 앞 레이어의 양자화 결과는 반영하지 않습니다(non-sequential).</li>
+  <li>회전 방법은 회전된 기저에서 GPTQ를 합니다.</li>
+  </ul></li>
+<li><b>옵션 B-3 (<code>--actorder --wsearch</code>)</b>:
+  <ul>
+  <li>act-order: Hessian 대각이 큰 열부터 처리합니다.</li>
+  <li>static groups: 블록 스케일을 GPTQ 전에 BF16 weight에서 정해 고정합니다. act-order와 블록 그룹이 충돌하지 않게 하는 표준 방법입니다.</li>
+  <li>weight 스케일은 블록마다 m ∈ {3, …, 8} 중 MSE 최소로 고르며, activation 규칙과는 독립입니다. weight 쪽은 오프라인이므로 비용이 없습니다.</li>
+  <li>공정한 비교를 위해 UFP4도 같은 GPTQ로 돌립니다.</li>
+  </ul></li>
+<li><b>외부 기준선</b>: MR-GPTQ(공식 IST-DASLab FP-Quant)와 WUSH(공식 코드, torch 참조 backend). 둘 다 자체 기본 보정 데이터(fineweb-edu 128 × 2048, seed 42)를 씁니다.</li>
+</ul>
+
+<h3>8. 옵션 B의 레이어별 선택 (<code>--sel</code>)</h3>
+<p>Linear 묶음마다 방법의 블록 스케일 규칙(4/6 또는 opt)과 기본 @6 중 보정 데이터에서 W4A4 출력 오차가 작은 쪽을 고릅니다. QDS 방법은 학습한 s를 적용한 상태에서 비교합니다. 4/6이 해로운 레이어(예: Qwen3-8B)는 @6으로 돌아갑니다. 선택 결과는 결과 JSON의 <code>sel</code>에 묶음마다 [방법 오차, @6 오차, 유지 여부]로 저장합니다.</p>
+
+<h3>9. 평가</h3>
+<ul>
+<li><b>Perplexity</b>: WikiText-2 test(raw)를 이어 붙여 2048 토큰 단위로 겹치지 않게 자른 뒤의 토큰 평균 NLL입니다.</li>
+<li><b>Avg5</b>: lm-eval 0.4.9, 0-shot HellaSwag / ARC-E / ARC-C / PIQA는 acc_norm, WinoGrande는 acc. 다섯 개의 단순 평균이며, batch size 8입니다.</li>
+<li><b>잡음 수준</b>: seed 3개 기준 QDS-4/6 ppl 표준편차는 0.01(Llama-3) ~ 0.04(Qwen3)이고, Avg5는 0.1–0.3점입니다. Avg5 차이 1점 이내는 잡음으로 봅니다.</li>
+<li><b>레이어 단위 probe 지표</b>: GEMM 출력 SQNR = −10·log₁₀(‖Ŷ − Y‖² / ‖Y‖²). 디코더 Linear 전체의 평균(dB)입니다.</li>
+</ul>
+
+<h3>10. 이름 대응표</h3>
+<div class="tw"><table>
+<tr><th>method comparison / 리포트</th><th>코드 method</th><th>플래그</th></tr>
+<tr><td>E2M1 (NVFP4 RTN)</td><td><code>e2m1</code></td><td></td></tr>
+<tr><td>4/6</td><td><code>e2m1_46</code></td><td></td></tr>
+<tr><td>E2M1 + RHT16</td><td><code>e2m1_h16</code></td><td><code>--rht</code></td></tr>
+<tr><td>UFP4</td><td><code>ufp4</code></td><td><code>--rht</code></td></tr>
+<tr><td>SQ-4/6 / tuned SQ-4/6 / AWQ-4/6 / LET-4/6</td><td><code>sq_46</code> / <code>sqgrid_46</code> / <code>awq_46</code> / <code>let_46</code></td><td></td></tr>
+<tr><td>QDS / QDS-4/6</td><td><code>diag</code> / <code>diag_46</code></td><td></td></tr>
+<tr><td>QDS-4/6 + RHT16</td><td><code>diag_46_h</code></td><td><code>--rht</code></td></tr>
+<tr><td>opt / QDS-opt (옵션 B-1)</td><td><code>e2m1_opt</code> / <code>diag_opt</code></td><td></td></tr>
+<tr><td>레이어별 선택 (B-2)</td><td><code>diag_46</code>, <code>diag_opt</code></td><td><code>--sel</code></td></tr>
+<tr><td>+GPTQ / 강한 GPTQ (B-3)</td><td>모든 방법</td><td><code>--gptq</code> / <code>--gptq --actorder --wsearch</code></td></tr>
+</table></div>
+
+<h2 id="r1">① RHT는 E2M1을 손해 보게 하고 균일 격자를 이득 보게 한다 (논문 재현)</h2>
+<figure><img src="data:image/png;base64,{{fig1}}" alt="RHT 전후 operand별 SQNR"><figcaption>그림 1. llama 300M, operand별 텐서 SQNR. 빈 원은 RHT 없음, 채운 원은 RHT 적용 후입니다.</figcaption></figure>
+<p>활성값과 gradient(X, dY, dYᵀ)에서 RHT를 적용하면 E2M1은 <span class="bad">0.6~1.5 dB 떨어지고</span>, 균일 격자는 <span class="good">1.5~3.0 dB 오릅니다</span>. 그 결과 RHT가 없을 때는 E2M1이 앞서고, RHT가 있을 때는 균일 격자가 앞섭니다. 이 순위 역전은 논문 결과(linear_fc2 fwd_x: 21.90 vs 19.94 → 20.00 vs 23.19 dB)와 같은 경향입니다. weight는 이미 Gaussian에 가까워서 RHT 효과가 거의 없고, 두 경우 모두 균일 격자가 약 0.8 dB 앞섭니다.</p>
+
+<h2 id="r2">② 실제 shrinkage는 작고, RHT는 오히려 이를 줄이거나 뒤집는다</h2>
+<figure><img src="data:image/png;base64,{{fig2}}" alt="Linear별 E2M1 α"><figcaption>그림 2. llama 300M, Linear별 E2M1 α. 회색은 RHT 없음, 파랑은 RHT 적용 후, 막대는 평균입니다.</figcaption></figure>
+<p>RHT가 없을 때 α는 0.995~0.998로, shrinkage는 <b>0.5% 이하</b>입니다. RHT를 넣으면 평균 α는 1 쪽으로 가거나(fwd X 0.9967 → 0.9998) 1을 넘습니다(wgrad dYᵀ 0.998 → 1.003). 일부 레이어는 <b>1.035까지 확대</b>됩니다. 따라서 논문의 “RHT가 shrinkage를 증폭한다”는 설명은 실제 텐서에서 확인되지 않았습니다.</p>
+
+<h2 id="r3">③ 왜 bias가 작은가: 비대칭 bin 사이의 상쇄</h2>
+<figure><img src="data:image/png;base64,{{fig4}}" alt="E2M1 레벨별 bias"><figcaption>그림 3. llama 300M fwd X. 위: 레벨별 조건부 bias. 아래: mass × bias (전체 bias에 대한 기여).</figcaption></figure>
+<p>논문이 지적한 대로 레벨 2와 4의 bin은 음의 bias를 냅니다. 그러나 최상위 레벨 6에서는 블록의 absmax 원소가 정확히 6에 매핑되고, (5, 6) 구간의 값은 위로 올림됩니다. 그래서 큰 양의 bias가 생겨 앞의 음의 bias를 상쇄합니다.</p>
+<p>원소 개수 기준 net bias(b_G ≈ −0.016)는 여전히 음수입니다. 하지만 텐서 크기와 내적에 영향을 주는 것은 <b>에너지 기준</b> α이고, 에너지 기준에서는 큰 값이 몰린 6 bin의 비중이 커서 α ≈ 1이 됩니다. RHT는 값을 상위 bin 쪽으로 옮기기 때문에 이 상쇄를 더 강하게 만듭니다.</p>
+
+<h2 id="r4">④ dB 예산: 격차는 bias가 아니라 해상도 차이 <span class="note">(핵심 결과)</span></h2>
+<figure><img src="data:image/png;base64,{{fig3}}" alt="GEMM 출력 SQNR 변화량"><figcaption>그림 4. GEMM 출력 SQNR 변화량. 막대는 300M, 점은 4개 체크포인트입니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>개입 (기준: E2M1 + RHT, RTN)</th><th>FPROP</th><th>DGRAD</th><th>WGRAD</th><th>해석</th></tr>
+<tr><td>per-tensor 1/α 보정 (bias 제거)</td><td class="n">−0.00</td><td class="n">−0.04</td><td class="n">−0.00</td><td>bias는 이미 무시할 수준</td></tr>
+<tr><td>격자 교체 E2M1 → 균일</td><td class="n good">+1.55</td><td class="n good">+1.25</td><td class="n good">+1.85</td><td>격차의 실체 = 해상도</td></tr>
+<tr><td>dY에 SR (unbiased)</td><td class="n">n/a</td><td class="n bad">−1.82</td><td class="n bad">−1.84</td><td>분산이 약 2배로 늘어남</td></tr>
+</table></div>
+<p>GEMM 출력 기준으로 E2M1의 α_Y는 0.992~0.999입니다. 두 operand의 shrinkage가 곱해지면서 0.5~0.8% 정도 줄어듭니다. 이를 1/α로 정확히 보정해도 SQNR은 거의 변하지 않습니다. bias가 전체 오차에서 차지하는 비중이 아주 작기 때문입니다. 반면 균일 격자로 바꾸면 1.3~1.9 dB 개선됩니다. RHT 이후 값이 몰리는 중간 크기 구간(2~6)에서 E2M1의 레벨 간격이 성기기 때문으로 보입니다.</p>
+<div class="callout"><b>제안한 unbiased 보정의 평가</b>
+<ul>
+<li><b>확률 가중 SR</b>은 기존 표준 SR과 같고 bias는 정확히 제거합니다. 하지만 MSE가 약 2배가 되어 GEMM 출력 SQNR을 1.8 dB 잃습니다. 0.5% bias를 없애는 대가로는 너무 큽니다.</li>
+<li><b>per-tensor α 보정</b>은 비용이 거의 없고 SQNR도 해치지 않지만, 얻는 것도 거의 없습니다. 의미가 남을 수 있는 경우는 레이어마다 약 0.6%씩 일관되게 축소되는 효과가 학습 중에 누적되는 경우뿐이고, 이는 Stage 1 학습 실험으로만 확인할 수 있습니다.</li>
+</ul></div>
+
+<h2 id="r5">⑤ 모델 크기와 학습 단계와 관계없이 같은 경향</h2>
+<figure><img src="data:image/png;base64,{{fig5}}" alt="체크포인트별 비교"><figcaption>그림 5. 왼쪽: RHT 이후 균일 격자가 E2M1보다 높은 SQNR(dB). 오른쪽: E2M1 α, RHT 전(빈 표시) → 후(채운 표시).</figcaption></figure>
+<p>100M, 300M, 760M(초기, 최종) 모두에서 균일 격자의 우위는 활성값과 gradient에서 1.6~3.0 dB, weight에서 약 0.9 dB입니다. RHT가 α를 1 쪽이나 그 위로 옮기는 방향도 모든 체크포인트에서 같습니다. 이 결과는 특정 모델이나 학습 단계에만 나타나는 현상이 아닙니다.</p>
+
+<h2 id="r6">⑥ 합성 분포: outlier가 많으면 bias 부호가 뒤집힌다</h2>
+<figure><img src="data:image/png;base64,{{fig6}}" alt="합성 분포 실험"><figcaption>그림 6. Gaussian, Laplace, Student-t, outlier 채널, outlier 원소 분포. 빈 원은 RHT 없음, 채운 원은 RHT 적용 후입니다.</figcaption></figure>
+<p>RHT가 outlier 하나를 블록 내 16개 원소에 비슷한 크기로 퍼뜨리면, 블록 값들이 absmax 근처인 (5, 6) 구간에 몰리고 6으로 올림됩니다. 그 결과 outlier 원소 분포(0.1% ×50)에서는 α가 <b>1.036</b>까지 커집니다. 이때는 α 보정이 0.9 dB를 회복합니다. 이는 α 보정이 의미 있었던 유일한 경우이고, 실제 llama 텐서에서는 이 정도 outlier가 관찰되지 않았습니다. 이 경우에도 균일 격자와의 격차(약 4 dB)가 훨씬 큽니다. 같은 이유로 경계를 한쪽으로 고정해 옮기는 보정은 이 경우 bias를 오히려 키웁니다. 보정을 한다면 데이터에 맞춰 계산하는 방식이어야 합니다.</p>
+
+<h2 id="r7">⑦ E1M2와 INT4는 같은가?</h2>
+<p>논문은 균일 격자를 “E1M2/INT4”로 묶어서 부릅니다. 두 격자가 실제로 같은지 300M 텐서로 직접 비교했습니다(<code>int4_vs_e1m2.py</code>).</p>
+<ul>
+<li><b>E1M2</b>: 크기 레벨 {0, 0.25, …, 1.75}, 스케일 = absmax / 1.75</li>
+<li><b>INT4 대칭</b>: 레벨 {−7, …, 7}, 스케일 = absmax / 7</li>
+<li><b>INT4 비대칭</b>: 레벨 {−8, …, 7}, 스케일 = absmax / 8. 양수 쪽 absmax는 8이 아니라 7로 clip됩니다.</li>
+</ul>
+<figure><img src="data:image/png;base64,{{fig7}}" alt="E1M2 vs INT4"><figcaption>그림 7. llama 300M, FPROP 출력의 SQNR과 α. 빈 원은 RHT 없음, 채운 원은 RHT 적용 후입니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>격자 (FP32 스케일)</th><th>fwd X SQNR, RHT 없음 / 후</th><th>fwd X α, 없음 / 후</th><th>FPROP 출력 SQNR, 없음 / 후</th><th>FPROP 출력 α, 없음 / 후</th></tr>
+<tr><td>E2M1</td><td class="n">21.15 / 20.19</td><td class="n">0.9967 / 0.9998</td><td class="n">20.98 / 20.23</td><td class="n">0.992 / 0.994</td></tr>
+<tr><td>E1M2</td><td class="n">20.06 / 22.51</td><td class="n">0.9988 / 1.0011</td><td class="n">20.56 / 21.78</td><td class="n">0.998 / 1.002</td></tr>
+<tr><td>INT4 대칭 (±7)</td><td class="n">20.06 / 22.51</td><td class="n">0.9988 / 1.0011</td><td class="n">20.56 / 21.78</td><td class="n">0.998 / 1.002</td></tr>
+<tr><td>INT4 비대칭 (−8..7)</td><td class="n">19.19 / 21.86</td><td class="n bad">0.9639 / 0.9808</td><td class="n">18.96 / 20.73</td><td class="n bad">0.944 / 0.961</td></tr>
+</table></div>
+<p><b>E1M2와 대칭 INT4는 완전히 같습니다.</b> absmax로 정규화하면 두 격자 모두 {0…7}/7이 되고, 스케일 비율도 정확히 4(= 2²)입니다. 그래서 FP32, E4M3, E8M0 어떤 스케일 형식에서도 반올림 결과가 똑같습니다. 측정에서도 모든 Linear와 설정에서 GEMM 출력 차이의 최대값이 <b>0</b>이었습니다. 따라서 이 보고서의 “균일 격자” 결과는 모두 대칭 INT4 결과이기도 합니다.</p>
+<p><b>비대칭 INT4는 다릅니다.</b> −8 레벨을 쓰기 위해 스케일을 absmax/8로 잡으면, 양수 쪽 최대값이 7로 clip되면서 α가 0.96~0.98, 즉 <b>2~4% 축소</b>됩니다. 이는 E2M1 축소(0.5% 이하)의 5~10배입니다. 그런데도 RHT 이후 SQNR은 E2M1보다 높습니다(fwd X 21.86 대 20.19 dB, FPROP 출력 20.73 대 20.23 dB). <b>bias가 훨씬 큰 격자가 SQNR에서 이긴다</b>는 점에서, 격차의 원인이 bias가 아니라 해상도라는 결론을 다시 한번 뒷받침합니다. 비대칭 INT4는 오히려 per-tensor α 보정이 실제로 의미를 가질 수 있는 경우입니다.</p>
+
+<h2 id="r8">⑧ shrinkage bias가 아니라면, 진짜 원인은?</h2>
+<p><b>1. 오차의 99%는 bias가 아니라 잡음(분산)입니다.</b> 양자화 오차를 신호와 같은 방향 성분과 나머지로 나누면 ‖e‖² = (1−α)²‖A‖² + ‖e⊥‖² 입니다. E2M1에서 bias² 항의 비중은 operand별로 <b>0.1~1.1%</b>이고, GEMM 출력 기준 평균은 <b>0.77%</b>입니다. 일부 outlier 레이어만 최대 17.7%까지 올라갑니다. 그러니 bias를 완벽하게 없애도 MSE는 1% 정도밖에 줄지 않습니다.</p>
+<p><b>2. 문제는 레벨의 “개수”가 아니라 “위치”입니다.</b> E2M1과 균일 격자는 둘 다 크기 레벨이 8개입니다. 차이는 위치입니다. E2M1은 0 근처가 촘촘하고(간격 0.5) 위쪽이 성깁니다(3→4는 1, 4→6은 2). 반면 균일 격자는 전 구간 간격이 6/7로 같습니다. 어느 쪽이 나은지는 블록 정규화 후 값 t = |x|/(absmax/6)의 분포가 정합니다.</p>
+<figure><img src="data:image/png;base64,{{fig8}}" alt="RHT 전후 에너지 분포와 격자 위치"><figcaption>그림 8. llama 300M, wgrad dYᵀ operand. 회색은 정규화 크기 t의 에너지 분포(|x|² 가중, 오차가 0인 absmax 원소는 제외)이고, 위쪽 눈금은 각 격자의 레벨 위치입니다. 보라색은 이 데이터에 맞춰 최적화한 8-레벨 Lloyd-Max 격자입니다(0과 6은 고정).</figcaption></figure>
+<p><b>3. RHT가 블록 내 분포를 이렇게 바꿉니다.</b></p>
+<ul>
+<li><b>RHT 전 (outlier가 있는 블록):</b> absmax 원소 하나가 블록 에너지의 <b>47~59%</b>를 차지합니다(X, dYᵀ). 이 원소는 정확히 6에 매핑되어 오차가 0입니다. 나머지 원소는 개수 기준으로 0 근처에 몰려 있어서(dYᵀ는 t&lt;1인 원소가 55%), 0 근처가 촘촘한 E2M1이 유리합니다. 이때 최적 격자도 [0, 0.36, 0.87, 1.51, 2.28, 3.25, 4.45, 6]처럼 아래쪽이 촘촘해서 E2M1을 닮습니다.</li>
+<li><b>RHT 후 (블록이 Gaussian에 가까워짐):</b> crest factor(absmax/RMS) 90 퍼센타일이 3.0~3.6에서 2.3~2.5로 줄고, absmax 원소의 에너지 비중은 23~26%로 떨어집니다. 나머지 에너지는 t가 6에 가까울수록 커져서, <b>E2M1이 가장 성긴 4~6 구간</b>에 몰립니다. 최적 격자는 [0, 0.79, 1.59, 2.41, 3.26, 4.16, 5.09, 6]으로 <b>거의 균일</b>해집니다.</li>
+</ul>
+<figure><img src="data:image/png;base64,{{fig9}}" alt="최적 격자 대비 손실과 E2M1 레벨별 MSE 출처"><figcaption>그림 9. 왼쪽: 데이터에 맞춘 최적 격자 대비 SQNR 손실. 오른쪽: E2M1 MSE가 어느 레벨에서 나오는지(wgrad dYᵀ).</figcaption></figure>
+<div class="tw"><table>
+<tr><th>operand</th><th>최적 대비 손실: E2M1 (RHT 전 / 후)</th><th>최적 대비 손실: 균일 (전 / 후)</th><th>E2M1 MSE 중 레벨 4·6 비중 (전 / 후)</th><th>crest p90 (전 / 후)</th></tr>
+<tr><td>fwd X</td><td class="n">0.86 / 2.61 dB</td><td class="n">1.70 / 0.16 dB</td><td class="n">41% / 72%</td><td class="n">3.02 / 2.50</td></tr>
+<tr><td>dgrad dY</td><td class="n">1.00 / 2.11 dB</td><td class="n">1.13 / 0.27 dB</td><td class="n">48% / 65%</td><td class="n">3.19 / 2.47</td></tr>
+<tr><td>wgrad dYᵀ</td><td class="n">0.66 / 2.98 dB</td><td class="n">2.31 / 0.05 dB</td><td class="n">33% / 76%</td><td class="n">3.60 / 2.34</td></tr>
+<tr><td>fwd W</td><td class="n">1.44 / 1.49 dB</td><td class="n">0.65 / 0.61 dB</td><td class="n">55% / 56%</td><td class="n">2.56 / 2.53</td></tr>
+</table></div>
+<p><b>정리하면</b>, RHT는 블록 분포를 “absmax 하나가 튀고 나머지는 작은” 모양에서 “absmax 근처까지 고르게 퍼진” 모양으로 바꿉니다. 그 결과 에너지가 E2M1의 가장 성긴 구간(간격 2인 4~6)으로 옮겨가고, 이 구간의 큰 반올림 잡음이 MSE를 지배하게 됩니다. 균일 격자는 이 분포에 대해 최적에 0.05~0.3 dB까지 다가갑니다. 따라서 UFP4가 좋은 이유는 bias가 없어서가 아니라, <b>RHT 이후 분포에 맞는 레벨 배치</b>이기 때문입니다.</p>
+<div class="callout"><b>함의</b>
+<ul>
+<li>bias를 보정하는 방식(SR, α 보정)으로는 이 차이를 메울 수 없습니다. 레벨 배치나 스케일 선택을 바꿔야 합니다.</li>
+<li>E2M1 하드웨어를 그대로 쓰면서 개선하는 방법으로는, 블록마다 absmax를 6 대신 4에 매핑하는 선택지를 주는 방식(Four Over Six 계열)이 있습니다. 이렇게 하면 성긴 4~6 구간을 덜 쓰게 되므로, 이 진단과 같은 방향의 처방입니다. 다음 단계에서 같은 지표로 검증해 볼 수 있습니다.</li>
+<li>weight는 원래 Gaussian에 가까워서(crest p90 약 2.5) RHT와 관계없이 균일 격자가 0.8 dB 앞섭니다. 같은 메커니즘입니다.</li>
+</ul></div>
+
+<h2 id="r9">⑨ RHT를 E2M1에 맞게 바꿀 수 있을까?</h2>
+<p>⑧에서 RHT 후 E2M1 오차의 대부분이 상위 bin(4, 6)에서 나온다는 것을 확인했습니다. 그렇다면 값을 촘촘한 0 근처로 보내도록 회전을 바꾸면 어떨까요? 13가지 직교 변환과 스케일 쪽 대안을 100M, 300M, 760M에서 시험했습니다(<code>rht_variants.py</code>). 모든 변환은 GEMM의 reduction 축에서 두 operand에 같이 적용되므로 결과는 수학적으로 상쇄됩니다. 데이터로 정하는 변환은 calibration 배치에서 정하고 다른 배치에서 평가했습니다. 단, 토큰이 reduction 축인 WGRAD는 같은 배치에서 바로 계산했습니다.</p>
+<div class="tw"><table>
+<tr><th>계열</th><th>변환</th><th>의도</th><th>결과 (E2M1, 회전 없음 대비)</th></tr>
+<tr><td>섞는 정도</td><td>H2, H4, H8 / H32~H128</td><td>덜 섞어 Gaussian화를 약하게</td><td class="bad">H2부터 H16까지 섞을수록 단조 감소 (−0.2 → −0.8 dB)</td></tr>
+<tr><td>에너지 집중</td><td>DCT16, Haar16, KLT</td><td>소수 계수에 에너지를 모아 0 근처 질량 증가</td><td class="bad">DCT ≈ H16, Haar ≈ H2~H4, KLT −0.7~−2.7 dB</td></tr>
+<tr><td>재배치/선택</td><td>PERM, ADAPT(I/H16)</td><td>비슷한 크기끼리 묶기, 블록별 회전 선택</td><td>±0.2 dB (DGRAD에서 PERM만 +0.2)</td></tr>
+<tr><td>RHT 튜닝</td><td>SIGN16, PERM+H16</td><td>최적 sign, 재배치 후 회전</td><td class="bad">H16과 같은 수준</td></tr>
+<tr><td>스케일 (회전 아님)</td><td>블록별 absmax→4 또는 6 (4/6)</td><td>성긴 4~6 구간을 직접 회피</td><td class="good">+0.57~0.70 dB</td></tr>
+</table></div>
+<figure><img src="data:image/png;base64,{{fig10}}" alt="회전 변형별 상위 bin MSE 비중과 SQNR"><figcaption>그림 10. llama 300M. 가로축은 E2M1 MSE 중 레벨 4·6 bin의 비중, 세로축은 회전 없음 대비 GEMM 출력 SQNR입니다.</figcaption></figure>
+<p><b>왜 회전으로는 안 될까요?</b> 직교 변환은 여러 성분의 선형 결합이라 중심극한정리 때문에 Gaussian 쪽으로 갑니다. 섞을수록(H2 → H16) 상위 bin의 비중이 36%에서 69%로 늘고, SQNR은 그만큼 떨어집니다(그림 10의 거의 일직선 관계). 에너지를 소수 계수에 모으는 변환(DCT, Haar, KLT)은 이웃 성분 사이에 상관이 있어야 효과가 있습니다. 그런데 LLM의 채널 순서에는 그런 구조가 없어서, 이 변환들도 결국 무작위로 섞는 것과 같아집니다. KLT는 텐서 전체의 주성분 방향으로 에너지를 모으지만, 토큰마다 블록 안 분포를 더 나쁘게 만들어 크게 손해를 봅니다. 결국 E2M1에 가장 좋은 회전은 <b>회전을 하지 않는 것</b>이고, 원래 데이터가 이미 가장 “뾰족한” 분포입니다.</p>
+<figure><img src="data:image/png;base64,{{fig11}}" alt="주요 설정 비교"><figcaption>그림 11. 주요 설정의 GEMM 출력 SQNR (100M ●, 300M ■, 760M ◆). 점선은 UFP4 평균입니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>설정 (300M)</th><th>FPROP</th><th>DGRAD</th><th>WGRAD</th><th>UFP4와의 차이</th></tr>
+<tr><td>E2M1 · H16 (NVFP4 레시피)</td><td class="n">20.15</td><td class="n">18.23</td><td class="n">18.75</td><td class="n bad">−1.6 / −1.2 / −1.9</td></tr>
+<tr><td>E2M1 · 회전 없음</td><td class="n">20.94</td><td class="n">18.65</td><td class="n">19.39</td><td class="n">−0.8 / −0.8 / −1.2</td></tr>
+<tr><td>E2M1-4/6 · 회전 없음</td><td class="n">21.50</td><td class="n">19.31</td><td class="n">20.09</td><td class="n">−0.24 / −0.16 / −0.53</td></tr>
+<tr><td>E2M1-4/6 · PERM (DGRAD)</td><td class="n">21.38</td><td class="n good">19.52</td><td class="n">20.07</td><td class="n">DGRAD는 UFP4보다 +0.05</td></tr>
+<tr><td>균일 · H16 (UFP4)</td><td class="n">21.74</td><td class="n">19.47</td><td class="n">20.62</td><td class="n">기준</td></tr>
+<tr><td>균일-clip · H16</td><td class="n">21.89</td><td class="n">19.66</td><td class="n">20.78</td><td class="n good">+0.15 / +0.19 / +0.16</td></tr>
+</table></div>
+<ul>
+<li><b>상위 bin 문제는 스케일 쪽에서 풀립니다.</b> 블록마다 absmax를 6 또는 4 중 오차가 작은 쪽에 매핑하면(4/6), 회전 없이도 E2M1이 +0.6~0.7 dB 오르고 UFP4와의 차이가 1.2~1.9 dB에서 0.2~0.6 dB로 줄어듭니다. 여기에 RHT를 더하면 오히려 손해입니다(H16+4/6이 I+4/6보다 0.3 dB 낮음). NVFP4에서는 블록 스케일 값만 바꾸면 되므로 하드웨어 형식은 그대로 쓸 수 있습니다. 대가는 블록마다 양자화를 두 번 하는 연산뿐입니다.</li>
+<li><b>absmax→3은 소용이 없습니다.</b> 3에 매핑했을 때의 레벨 {0, ⅙, ⅓, ½, ⅔, 1}·absmax는 6에 매핑했을 때의 레벨 집합의 부분집합이라, 6 매핑을 이길 수 없습니다. 실제로 한 번도 선택되지 않았습니다.</li>
+<li><b>공정하게 비교하면 균일 격자가 여전히 최고입니다.</b> 균일 격자도 블록별 clip 탐색을 하면 0.15~0.2 dB 더 오릅니다.</li>
+</ul>
+<div class="callout"><b>주의</b>: 이 비교는 GEMM 하나 단위의 SQNR만 봅니다. 학습 레시피에서 RHT는 outlier 완화 말고도 WGRAD 오차를 무작위화해서 체계적 누적을 막는 역할을 할 수 있는데, 이것은 SQNR로 드러나지 않습니다. 따라서 “E2M1-4/6, 회전 없음”이 실제 학습에서도 E2M1+RHT보다 나은지는 Stage 1 학습으로 확인해야 합니다. 학습 arm으로 추가할 후보입니다.</div>
+
+<h2 id="r10">⑩ 격자를 뒤집으면? (FLIP)</h2>
+<p>E2M1의 큰 간격(2→3, 3→4, 4→6)이 문제라면, 격자를 absmax 기준으로 뒤집어서 촘촘한 쪽을 absmax 근처에 두면 어떨까요? 크기 대신 “absmax까지의 거리” u = absmax − |x|를 E2M1로 양자화하고, |x̂| = absmax − q·s로 복원하는 방식입니다. 결국 새로운 8-레벨 격자 {0, 2, 3, 4, 4.5, 5, 5.5, 6}(absmax = 6 기준)을 쓰는 것과 같습니다. 0과 absmax는 그대로 정확히 표현됩니다.</p>
+<figure><img src="data:image/png;base64,{{fig12}}" alt="격자별 레벨 위치"><figcaption>그림 12. 블록 하나가 쓸 수 있는 크기 레벨(absmax = 1 기준). E2M1@4는 absmax를 레벨 4에 매핑한 것(4/6의 두 번째 선택지)이고, FLIP@4는 그것을 뒤집은 것입니다.</figcaption></figure>
+<figure><img src="data:image/png;base64,{{fig13}}" alt="FLIP 결과"><figcaption>그림 13. GEMM 출력 SQNR (100M ●, 300M ■, 760M ◆). 점선은 UFP4 평균입니다. “A만”은 FLIP을 활성값·gradient 쪽에만 쓴 경우로, 300M만 측정했습니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>설정 (300M, dB)</th><th>FPROP</th><th>DGRAD</th><th>WGRAD</th><th>UFP4와의 차이</th></tr>
+<tr><td>FLIP만 · H16</td><td class="n bad">16.32</td><td class="n bad">13.96</td><td class="n bad">15.32</td><td class="n bad">−5.4 / −5.5 / −5.3</td></tr>
+<tr><td>E2M1 · H16 (NVFP4 레시피)</td><td class="n">20.15</td><td class="n">18.22</td><td class="n">18.76</td><td class="n">−1.6 / −1.3 / −1.8</td></tr>
+<tr><td>E2M1|FLIP · H16 (블록별 2가지)</td><td class="n">21.04</td><td class="n">18.65</td><td class="n">19.69</td><td class="n">−0.7 / −0.8 / −0.9</td></tr>
+<tr><td>4/6 · 회전 없음 (⑨)</td><td class="n">21.50</td><td class="n">19.31</td><td class="n">20.10</td><td class="n">−0.24 / −0.16 / −0.49</td></tr>
+<tr><td><b>4/6|FLIP4/6 · H16 (블록별 4가지)</b></td><td class="n good">21.82</td><td class="n">19.44</td><td class="n">20.51</td><td class="n good">+0.08 / −0.03 / −0.08</td></tr>
+<tr><td>4/6|FLIP4/6, A 쪽만 · H16</td><td class="n">21.72</td><td class="n">19.37</td><td class="n">20.36</td><td class="n">−0.02 / −0.10 / −0.23</td></tr>
+<tr><td>균일 · H16 (UFP4)</td><td class="n">21.74</td><td class="n">19.47</td><td class="n">20.59</td><td class="n">기준</td></tr>
+</table></div>
+<ul>
+<li><b>순수 FLIP은 크게 손해입니다(−4 ~ −6.5 dB).</b> 뒤집으면 0~1/3 구간(absmax = 1 기준)이 통째로 비게 됩니다. RHT 후에도 t &lt; 1(absmax = 6 기준)인 원소가 22~25% 있어서, 이 값들의 오차가 커집니다. MSE는 에너지가 아니라 원소 개수 기준이라 작은 값도 똑같이 셉니다(⑧의 개수 기준 최적 격자가 거의 균일했던 것과 같은 이유).</li>
+<li><b>블록마다 고르게 하면 쓸모가 생깁니다.</b> RHT 후에는 블록의 13~23%가 FLIP을 고릅니다. 값이 absmax 근처에 몰린 블록들입니다. 회전이 없으면 2~7%만 고릅니다.</li>
+<li><b>4가지 선택지(E2M1@6, E2M1@4, FLIP@6, FLIP@4)와 H16을 함께 쓰면 E2M1이 UFP4와 0.15 dB 이내로 같아집니다.</b> 세 모델 모두 같습니다(100M: +0.03 / −0.06 / −0.13, 760M: +0.07 / −0.03 / −0.05). 이 경우에는 ⑨와 달리 RHT가 다시 이득입니다. RHT가 만든 absmax 근처의 질량을 FLIP 블록이 받아 주기 때문입니다.</li>
+<li><b>4/6은 표준 NVFP4 그대로지만, FLIP은 아닙니다.</b> 4/6의 선택 결과는 스케일 값에만 담기므로 하드웨어가 일반 NVFP4로 읽고, 추가 비용은 블록마다 양자화를 두 번 해 보는 인코딩 단계뿐입니다. FLIP 블록의 레벨 {0, 2, 3, 4, 4.5, 5, 5.5, 6}은 어떤 스케일을 곱해도 E2M1 레벨 집합에 들어가지 않으므로 FP4 tensor core가 바로 읽을 수 없습니다. 뒤집기 여부를 E4M3 스케일의 부호 비트에 담는 방법은 커스텀 커널에서만 가능합니다. 네이티브 하드웨어는 그 비트를 부호로 해석합니다.</li>
+<li><b>FLIP의 연산 비용이 결정적입니다.</b> 네이티브 FP4 하드웨어에서 FLIP을 쓰려면, 두 NVFP4 텐서의 합으로 쪼개야 합니다. (a) 뒤집힌 블록에만 코드 ±1과 스케일 absmax를 두고 나머지 블록은 0인 텐서, (b) 코드 ±q와 스케일 s의 텐서입니다. 그러면 FP4 GEMM이 2배(양쪽 operand에 쓰면 4배)가 되고, 쪼갠 텐서 하나만큼 메모리와 대역폭도 늘어납니다. A 쪽에만 써도 FP4 GEMM 2번은 FP8 GEMM 한 번과 비슷한 비용입니다. 같은 비용이면 SQNR이 약 12.5 dB 높은 FP8(Gaussian, 같은 1×16 블록 스케일에서 33.0 대 20.5 dB)이 낫기 때문에, <b>네이티브 하드웨어에서는 FLIP이 실용적이지 않습니다</b>. LUT로 디코딩하는 커스텀 커널도 같은 문제를 겪습니다. FP4 코드를 FP8/BF16 값으로 풀어서 MMA를 해야 하므로, 곱셈·덧셈 횟수는 같아도 FP8 속도(Blackwell에서 FP4의 절반)로 돕니다. 따라서 compute-bound인 학습 GEMM에서는 이득이 없습니다. 비용이 거의 없는 경우는 inference의 weight-only처럼 memory-bound인 커널뿐이고, 그런 환경이라면 FLIP에 국한하지 않고 NF4 같은 최적 코드북을 쓸 수 있습니다.</li>
+<li><b>FLIP@6과 E2M1@4는 같은 방향이지만 맡는 블록이 다릅니다.</b> 300M 레이어 7에서 H16 후 블록을 보면(<code>block_profile.py</code>), 값이 위쪽에 어느 정도 몰린 블록(16개 중 t&gt;2/3인 원소 약 4개, t&lt;1/4인 원소 5~6개)은 E2M1@4를 고릅니다. 이런 블록이 41~43%이고, MSE가 약 31% 줄어듭니다. 값이 위쪽에 강하게 몰리고 작은 값이 거의 없는 블록(t&gt;2/3 5.4~7.3개, t&lt;1/4 1.7~3.1개)은 FLIP@6을 고릅니다. 이런 블록이 4~13%이고, MSE가 39~61% 줄어듭니다. 두 장치를 함께 쓴 이득은 각각의 이득을 합한 값의 82~93%로 대부분 더해지고, @4를 함께 주면 FLIP을 고르던 블록의 약 40%가 @4로 옮겨 갑니다. 표준 NVFP4로 표현되는 선택지는 사실상 @6과 @4뿐이라(@3, @2 등의 레벨 집합은 둘 중 하나의 부분집합), 강하게 위로 쏠린 블록을 받아 줄 네이티브 선택지는 없습니다.</li>
+<li><b>E2M1@6과 FLIP@6 두 가지만 두면, 어떤 블록이 FLIP을 고를까요?</b> 300M 레이어 0, 7, 14의 wq·w2 텐서 18개로 확인했습니다(<code>block_profile2.py</code>, 그림 14). 결정 요인은 <b>absmax 근처(t &gt; 2/3)에 있는 원소 수</b>입니다. 그런 원소가 3개 이하면 FLIP을 거의 고르지 않고(4% 이하), 5개면 약 25%, 7개면 약 60%, 9개 이상이면 90~100%가 FLIP을 고릅니다. 이 곡선은 회전 유무와 거의 관계가 없습니다. RHT는 곡선 자체를 바꾸지 않고, absmax 근처 원소가 많은 블록을 늘려서 FLIP 비율을 높입니다. 텐서에 따라 FLIP 비율은 회전 없음 1.5~9%, H16 9~31%입니다. FLIP 블록 안에서 MSE는 24~62% 줄고, 텐서 전체로는 회전 없음 1~5%, H16 5~33% 줄어듭니다. 특히 H16 후에는 16개 원소가 모두 absmax 근처인 블록이 0.5% 있는데, outlier 하나에 Hadamard를 적용해 16개 값이 같은 크기가 된 블록입니다. 이 블록들은 거의 100% FLIP을 고르고, FLIP으로 거의 오차 없이 표현됩니다.</li>
+<figure><img src="data:image/png;base64,{{fig14}}" alt="FLIP 선택 확률"><figcaption>그림 14. 위: 블록 안의 absmax 근처 원소 수에 따른 FLIP@6 선택 확률. 아래: 그런 블록의 비율. 300M, 텐서 18개 합산.</figcaption></figure>
+<li><b>4/6 없이 FLIP@6만 블록별로 고르는 방식(E2M1|FLIP)은 4/6보다 못합니다.</b> 일반 E2M1보다 0.1~0.9 dB 오르지만, 회전 없는 4/6보다 0.1~0.7 dB 낮습니다(세 모델 공통). 4/6은 GEMM 비용이 그대로이므로, FLIP@6 선택만 따로 쓸 이유는 없습니다.</li>
+<li><b>그래도 같은 조건에서는 균일 격자가 앞섭니다.</b> 균일 격자에 블록별 clip 탐색을 더하면(⑨) 300M에서 21.89 / 19.66 / 20.78 dB로, 4/6|FLIP4/6보다 0.07~0.27 dB 높습니다. FLIP은 “E2M1 하드웨어를 꼭 써야 할 때”의 우회책으로 의미가 있습니다.</li>
+</ul>
+
+<h2 id="r11">⑪ 공개 모델로 다시 확인하기</h2>
+<p>①~⑩의 핵심 실험을 <b>공개 모델 5종</b>으로 다시 돌렸습니다: Qwen2.5-0.5B, Qwen2.5-1.5B, Qwen3-1.7B, OLMo-2-0425-1B, SmolLM2-1.7B(<code>hf/</code>, <code>hf_common.py</code>). 모델은 BF16으로 두고 weight는 고정했으며, DCLM val 4,096 토큰을 각 모델의 토크나이저로 인코딩해 썼습니다.</p>
+<ul>
+<li><b>lingua 모델에서 본 결과가 그대로 나옵니다.</b>
+<ul>
+<li>RHT는 fwd X에서 E2M1을 1.0~1.5 dB 깎고, 균일 격자는 2.8~3.9 dB 올립니다.</li>
+<li>E2M1의 shrinkage는 텐서당 0.2~0.4%로 작고, RHT 후에는 α가 1 근처나 그 위(최대 1.012)로 갑니다.</li>
+<li>α 보정의 효과는 ±0.06 dB 이내이고, dY에 SR을 쓰면 1.8~1.9 dB 손해입니다.</li>
+<li>어떤 회전도 "회전 없음"을 확실히 이기지 못했습니다. 블록 대각 KLT(블록마다 PCA로 회전)도 absmax 에너지 비중을 늘리지 못했습니다(62.3% → 61.9%).</li>
+</ul></li>
+<li><b>새로 보인 점:</b> 공개 모델에서는 채널 단위 outlier가 더 강해서, PERM(채널 재배치)과 4/6을 함께 쓰는 조합이 여러 GEMM에서 UFP4를 넘었습니다.</li>
+</ul>
+<div class="tw"><table>
+<tr><th>GEMM 출력 SQNR dB (FPROP / DGRAD / WGRAD)</th><th>E2M1 + H16</th><th>E2M1 회전 없음</th><th>E2M1-4/6 + PERM</th><th>UFP4</th></tr>
+<tr><td>Qwen2.5-0.5B</td><td class="n">18.39 / 16.34 / 18.69</td><td class="n">19.40 / 17.06 / 19.48</td><td class="n">19.92 / <b>18.03</b> / 20.09</td><td class="n">20.24 / 17.76 / 20.51</td></tr>
+<tr><td>OLMo-2-1B</td><td class="n">19.76 / 17.25 / 15.90</td><td class="n">20.63 / 17.65 / 18.34</td><td class="n">21.20 / 18.37 / <b>19.88</b>*</td><td class="n">21.47 / 18.48 / 17.88</td></tr>
+<tr><td>Qwen2.5-1.5B</td><td class="n">18.17 / 16.59 / 18.29</td><td class="n">19.33 / 17.30 / 19.13</td><td class="n"><b>20.18 / 18.24</b> / 19.85</td><td class="n">20.08 / 17.98 / 20.16</td></tr>
+<tr><td>SmolLM2-1.7B</td><td class="n">19.01 / 16.31 / 18.62</td><td class="n">20.46 / 16.97 / 19.57</td><td class="n">20.60 / <b>18.19</b> / 20.30</td><td class="n">21.02 / 17.69 / 20.30</td></tr>
+<tr><td>Qwen3-1.7B</td><td class="n">18.21 / 16.76 / 22.81</td><td class="n">19.56 / 17.52 / 23.94</td><td class="n"><b>20.83 / 18.45</b> / 24.38</td><td class="n">20.18 / 18.18 / 24.62</td></tr>
+</table></div>
+<p class="note">굵은 값은 UFP4보다 높은 칸입니다. FPROP와 DGRAD의 PERM 순서는 다른 배치에서 정했습니다. *WGRAD는 축이 토큰이라 평가 배치에서 바로 정렬했으므로 다소 유리한 값입니다.</p>
+
+<h2 id="r12">⑫ 방향 2: RHT의 두 역할 나누기</h2>
+<p>학습 레시피에서 RHT는 두 가지 일을 합니다. 하나는 <b>(a) outlier를 블록 안에 고르게 퍼뜨리는 것</b>, 다른 하나는 <b>(b) 양자화 오차를 매번 다르게 만들어 평균이 0에 가깝게 하는 것</b>입니다. 그런데 (a)는 E2M1에 손해입니다. 그래서 (b)만 남기는 방법으로 <b>step마다 채널(또는 토큰) 순서를 무작위로 섞는 것(RPERM)</b>을 시험했습니다. 두 operand에 같은 순서를 적용하므로 GEMM 결과는 그대로이고, 값들을 서로 섞지 않으므로 블록 분포도 Gaussian 쪽으로 바뀌지 않습니다.</p>
+<ul>
+<li><b>활성값·gradient 쪽은 무작위화가 필요 없었습니다.</b> 배치마다 데이터가 달라서, 회전이 없어도 배치 간 오차의 상관이 이미 0에 가깝습니다(cos ≈ 0.001, Qwen2.5-0.5B WGRAD 누적 실험).</li>
+<li><b>weight 쪽은 무작위화가 의미가 있습니다.</b> 같은 W를 S번 서로 다른 무작위 변환으로 양자화해 평균 내면 오차가 줄어듭니다. 회전이 없으면 오차가 매번 같아서 평균을 내도 그대로입니다.</li>
+</ul>
+<div class="tw"><table>
+<tr><th>weight 상대 오차 (Qwen2.5-0.5B)</th><th>S=1</th><th>S=4</th><th>S=32</th></tr>
+<tr><td>E2M1, 회전 없음</td><td class="n">0.0932</td><td class="n">0.0932</td><td class="n">0.0932</td></tr>
+<tr><td>E2M1, H16 매번 새 sign</td><td class="n">0.0944</td><td class="n">0.0475</td><td class="n">0.0176</td></tr>
+<tr><td>E2M1, RPERM</td><td class="n"><b>0.0930</b></td><td class="n">0.0486</td><td class="n">0.0230</td></tr>
+<tr><td>균일, H16 매번 새 sign</td><td class="n">0.0843</td><td class="n">0.0422</td><td class="n">0.0151</td></tr>
+</table></div>
+<p>RPERM은 한 번 양자화할 때의 오차를 늘리지 않으면서(0.0930), 여러 번 평균 냈을 때 줄어드는 효과는 H16과 비슷하게 냈습니다. 하지만 <b>Stage 1 학습에서는 효과가 없었습니다</b>: E2M1-4/6 + RPERM이 +0.065, E2M1-4/6만 쓴 경우가 +0.066이었습니다(⑯).</p>
+<p class="note">선행연구: RHT의 무작위성을 unbiasedness에 쓰는 연구는 있습니다(Quartet II, Tseng et al.). sign을 다시 뽑는 ablation도 있습니다(NVIDIA NVFP4, "What Matters for NVFP4 Training?"). 반면 RHT를 무작위 재배치로 바꾼 연구는 찾지 못했습니다. 반대 증거도 있는데, AMD의 MXFP4 논문은 WGRAD에서 고정 Hadamard가 무작위 Hadamard보다 안정적이었다고 보고합니다.</p>
+
+<h2 id="r13">⑬ outlier 처리와 smoothing (실제 텐서)</h2>
+<p>세 모델(Qwen2.5-0.5B, OLMo-2-1B, Qwen3-1.7B)에서 각 채널에 점수(rms(A)·rms(B))를 매겨 outlier 채널을 정하고, 이를 처리하는 방법을 비교했습니다(<code>outlier_test.py</code>, GEMM 출력 SQNR dB, FPROP / DGRAD / WGRAD*).</p>
+<div class="tw"><table>
+<tr><th>모델</th><th>E2M1 + H16</th><th>UFP4</th><th>E2M1 + outlier 1% FP8</th><th>E2M1-4/6 + outlier 1% FP8</th><th>E2M1-4/6 + smoothing</th></tr>
+<tr><td>Qwen2.5-0.5B</td><td class="n">18.39 / 16.34 / 18.68</td><td class="n">20.23 / 17.77 / 20.38</td><td class="n">21.00 / 18.06 / 20.69</td><td class="n"><b>21.58 / 18.60</b> / 21.50</td><td class="n">21.40 / 18.12 / <b>21.79</b></td></tr>
+<tr><td>OLMo-2-1B</td><td class="n">19.75 / 17.24 / 15.94</td><td class="n">21.48 / 18.50 / 17.48</td><td class="n">22.04 / 18.09 / 20.81</td><td class="n"><b>22.74 / 18.71</b> / 21.35</td><td class="n">21.85 / 18.28 / <b>22.31</b></td></tr>
+<tr><td>Qwen3-1.7B</td><td class="n">18.22 / 16.75 / 22.89</td><td class="n">20.18 / 18.18 / 24.21</td><td class="n">21.58 / 18.20 / 26.47</td><td class="n"><b>22.20 / 18.78 / 27.31</b></td><td class="n">21.93 / 18.37 / 27.41</td></tr>
+</table></div>
+<ul>
+<li><b>outlier 블록에만 RHT를 거는 것(oRHT)은 손해입니다.</b> outlier가 모인 블록 안에서도 Hadamard가 값을 평평하게 만들기 때문에, 모든 모델과 GEMM에서 RHT를 전혀 쓰지 않은 경우보다 낮았습니다.</li>
+<li><b>상위 1% 채널만 FP8로 남기면 FPROP·WGRAD에서 UFP4를 넘습니다.</b> 4/6 없이도 넘습니다(FPROP +0.6~1.4, WGRAD +0.3~3.3 dB). DGRAD는 4/6을 더해야 UFP4와 같거나 높고, 4/6이 없으면 비슷하거나 낮습니다(OLMo 18.09 대 18.50). 이 채널들을 FP8 대신 BF16으로 남겨도 차이는 0.15 dB 이하였습니다. 추가 비용은 FP4로 환산하면 약 2%의 FP8 GEMM과 채널을 모으는 gather 연산입니다. 이 방식은 Atom/QUIK 계열 기법과 같습니다.</li>
+<li><b>smoothing(SmoothQuant 식, 매 호출마다 계산)</b>은 GEMM을 하나도 늘리지 않으면서 FPROP와 WGRAD에서 UFP4를 넘습니다. DGRAD는 닫힌 식으로는 효과가 작습니다(+0.05~0.5 dB).</li>
+</ul>
+<p class="note">*WGRAD의 outlier 점수와 smoothing 스케일은 평가 배치에서 바로 계산했습니다(토큰 축이기 때문).</p>
+
+<h2 id="r14">⑭ 방향 3: 학습형 채널별 스케일과 오버헤드 없는 형태</h2>
+<p><b>방법.</b> 각 GEMM의 reduction 축을 16채널 단위로 묶고, 묶음마다 변환 T<sub>g</sub>를 둡니다. A에는 T를, B에는 T<sup>−T</sup>를 곱하므로 GEMM 결과는 그대로입니다. T는 calibration 데이터에서 <b>E2M1 양자화 후 GEMM 출력 오차를 최소화하도록</b> STE로 학습했습니다.</p>
+<ul>
+<li><b>직교 변환을 학습하는 것은 효과가 없습니다.</b> H16에서 출발해도 학습이 Hadamard를 되돌려 "회전 없음" 수준으로 수렴합니다.</li>
+<li><b>가역(비직교) 변환은 이득이 큽니다.</b> 그런데 이득은 거의 모두 <b>채널별 대각 스케일(학습형 smoothing)</b>에서 나오고, 16×16 가역 행렬로 넓혀도 더 나아지지 않았습니다.</li>
+</ul>
+<figure><img src="data:image/png;base64,{{fig16}}" alt="공개 모델 PTQ 품질"><figcaption>그림 16. FPROP W4A4 PTQ 후 held-out BPB가 BF16 대비 얼마나 늘었는지(낮을수록 좋음). 변환은 4,096 토큰으로 학습하고, 겹치지 않는 16×1024 토큰으로 평가했습니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>BF16 대비 BPB 증가</th><th>Qwen2.5-0.5B</th><th>OLMo-2-1B</th><th>Qwen2.5-1.5B</th></tr>
+<tr><td>E2M1 + H16</td><td class="n">+7.68%</td><td class="n">+4.66%</td><td class="n">+5.74%</td></tr>
+<tr><td>E2M1 회전 없음</td><td class="n">+5.47%</td><td class="n">+3.22%</td><td class="n">+3.66%</td></tr>
+<tr><td>UFP4</td><td class="n">+4.63%</td><td class="n">+3.09%</td><td class="n">+3.23%</td></tr>
+<tr><td>E2M1-4/6</td><td class="n">+4.79%</td><td class="n">+3.08%</td><td class="n">+3.33%</td></tr>
+<tr><td><b>E2M1 + 그룹별 대각</b></td><td class="n good">+3.82%</td><td class="n good">+2.64%</td><td class="n good">+2.06%</td></tr>
+<tr><td><b>E2M1-4/6 + 그룹별 대각</b></td><td class="n good">+3.18%</td><td class="n good">+2.02%</td><td class="n good">+1.93%</td></tr>
+<tr><td>E2M1-4/6 + 그룹별 가역</td><td class="n">+3.24%</td><td class="n">+1.90%</td><td class="n">+2.24%</td></tr>
+</table></div>
+<h3>SmoothQuant, OmniQuant LET와의 관계</h3>
+<p>세 방법 모두 같은 등식 Y = (X·diag(1/s))(W·diag(s))<sup>T</sup>를 이용해 활성값 outlier를 weight 쪽으로 옮깁니다. 차이는 s를 정하는 방식입니다.</p>
+<ul>
+<li><b>SmoothQuant</b>: 공식 s = max|X|<sup>α</sup>/max|W|<sup>1−α</sup>으로 정합니다.</li>
+<li><b>OmniQuant LET</b>: s와 shift δ를 학습하는데, 목표는 블록 출력의 재구성 오차입니다. 같은 입력을 읽는 Linear끼리 s를 공유하고, weight clipping(LWC)도 함께 학습합니다.</li>
+<li><b>우리 방식("그룹별 대각")</b>: shift 없이 Linear 하나의 출력 오차를 목표로, FP4 E2M1 블록 양자화를 직접 염두에 두고 s를 학습합니다. 즉 "Linear 단위로 학습하고 shift가 없는 LET"이므로, 방법 자체를 새롭다고 보기는 어렵습니다.</li>
+</ul>
+<div class="tw"><table>
+<tr><th>Qwen2.5-0.5B, BF16 대비 BPB 증가</th><th>E2M1</th><th>E2M1-4/6</th></tr>
+<tr><td>SmoothQuant (최적 α = 0.5)</td><td class="n">+4.24%</td><td class="n">+3.64%</td></tr>
+<tr><td>그룹별 대각 (Linear마다 따로)</td><td class="n">+3.55%</td><td class="n">+3.15%</td></tr>
+<tr><td>그룹별 대각 + shift</td><td class="n">+3.66%</td><td class="n">+2.98%</td></tr>
+<tr><td><b>LET 방식 (블록 단위, s 공유, shift)</b></td><td class="n good">+3.28%</td><td class="n good">+2.86%</td></tr>
+</table></div>
+<div class="tw"><table>
+<tr><th>BF16 대비 BPB 증가 (E2M1 / E2M1-4/6)</th><th>Qwen2.5-0.5B</th><th>OLMo-2-1B</th></tr>
+<tr><td>E2M1 변환 없음</td><td class="n">+5.47 / +4.79%</td><td class="n">+3.22 / +3.08%</td></tr>
+<tr><td>SmoothQuant (최적 α: Qwen 0.5, OLMo 0.7)</td><td class="n">+4.24 / +3.64%</td><td class="n bad">+3.39 / +3.32%</td></tr>
+<tr><td>그룹별 대각 (Linear마다 따로)</td><td class="n">+3.55 / +3.15%</td><td class="n good">+2.31 / +1.82%</td></tr>
+<tr><td>그룹별 대각 + shift</td><td class="n">+3.66 / +2.98%</td><td class="n bad">+5.70 / +5.37%</td></tr>
+<tr><td>LET 방식 (블록 단위, 공유, shift)</td><td class="n good">+3.28 / +2.86%</td><td class="n bad">+5.48 / +5.24%</td></tr>
+</table></div>
+<ul>
+<li><b>shift는 모델에 따라 결과가 갈립니다.</b> Qwen에서는 조금 좋아졌지만 OLMo에서는 0에서 시작해도 크게 나빠졌습니다. OmniQuant처럼 채널 범위의 중간값 (max+min)/2로 초기화하면 Qwen에서도 망가졌습니다(BPB +151%). BOS 등에서 생기는 거대 활성값 때문에 모든 토큰이 큰 상수만큼 밀리고, 그 상수가 블록 absmax 스케일을 차지해 버리기 때문입니다. 결론적으로 <b>shift는 쓰지 않는 것이 좋고, 그러면 오버헤드도 생기지 않습니다.</b></li>
+<li><b>SmoothQuant 공식은 OLMo에서 변환 없음보다도 나빴습니다.</b> E2M1 블록 양자화에서는 공식으로 정한 스케일보다, 실제 오차를 보고 학습한 스케일이 필요합니다.</li>
+</ul>
+<h3>오버헤드 없애기: 스케일을 앞 연산에 접어 넣기</h3>
+<p>같은 입력을 읽는 Linear끼리 s를 공유하면, 추론 때 추가 연산이 전혀 없습니다. s를 앞 연산의 가중치에 미리 곱해 둘 수 있기 때문입니다.</p>
+<ul>
+<li>q/k/v와 gate/up: s를 RMSNorm 가중치에 접어 넣습니다(γ' = γ/s, W' = W·diag(s)).</li>
+<li>down_proj: up_proj 출력 행에 접어 넣습니다.</li>
+<li>o_proj: v_proj 출력 행에 접어 넣습니다. 단 GQA에서는 같은 KV head를 쓰는 query head들끼리 s가 같아야 합니다.</li>
+</ul>
+<p>모델 구조에 따라 조건이 있습니다. OLMo-2는 norm이 sublayer 출력 쪽에 있어서, q/k/v 입력 스케일을 접어 넣을 norm이 없습니다. 이 경우는 양자화 커널 안에서 원소별로 곱해 처리합니다. 학습 중이나 backward GEMM에서도 같은 방식이고, 양자화 커널이 어차피 텐서를 한 번 읽으므로 추가 비용은 사실상 없습니다.</p>
+<div class="tw"><table>
+<tr><th>BF16 대비 BPB 증가, E2M1-4/6 (괄호: E2M1)</th><th>학습 목표</th><th>초기값</th><th>스케일 공유</th><th>Qwen2.5-0.5B</th><th>OLMo-2-1B</th></tr>
+<tr><td>SmoothQuant α=0.5</td><td>–</td><td>–</td><td>공유</td><td class="n">+3.57 (+3.94)</td><td class="n bad">+4.06 (+4.22)</td></tr>
+<tr><td>그룹별 대각</td><td>Linear</td><td>s=1</td><td>Linear마다</td><td class="n">+3.15 (+3.55)</td><td class="n good">+1.82 (+2.31)</td></tr>
+<tr><td>그룹별 대각</td><td>Linear</td><td>s=1</td><td>공유</td><td class="n">+3.23 (+3.75)</td><td class="n">+1.89 (+2.35)</td></tr>
+<tr><td><b>그룹별 대각, 접기 가능</b></td><td>Linear</td><td>s=1</td><td>공유 + GQA 제약</td><td class="n">+3.22 (+4.02)</td><td class="n">+1.89 (+2.35)</td></tr>
+<tr><td>그룹별 대각</td><td>Linear</td><td>SmoothQuant</td><td>공유</td><td class="n">+3.03 (+3.80)</td><td class="n">+2.07 (+2.30)</td></tr>
+<tr><td>LET, shift 없음</td><td>블록</td><td>SmoothQuant</td><td>Linear마다</td><td class="n">+3.10 (+3.60)</td><td class="n">+2.24 (+2.54)</td></tr>
+<tr><td>LET, shift 없음, 접기 가능</td><td>블록</td><td>SmoothQuant</td><td>공유 + GQA 제약</td><td class="n good">+2.97 (+3.62)</td><td class="n">+2.13 (+2.47)</td></tr>
+<tr><td>(참고) UFP4</td><td colspan="3"></td><td class="n">+4.63</td><td class="n">+3.09</td></tr>
+</table></div>
+<p><b>LET와 그룹별 대각은 같은 연산입니다.</b> 둘 다 채널별 대각 스케일을 곱하는 것이고, 학습으로 도달한 스케일 값만 다릅니다. Qwen에서 LET가 보인 이득(+3.23% → +2.97%)은 대부분 <b>초기값</b> 덕분이었습니다. 그룹별 대각도 SmoothQuant 값에서 시작하면 +3.03%가 되고, 블록 출력을 목표로 하는 것의 추가 효과는 0.06%p 정도입니다. OLMo에서는 반대로 SmoothQuant 초기값과 블록 목표가 둘 다 손해였습니다(+1.89% → +2.07% → +2.13%). OLMo에서는 SmoothQuant 자체가 변환 없는 경우보다 나쁜데, 학습이 그 나쁜 출발점에서 충분히 벗어나지 못한 것으로 보입니다. 결국 차이는 0.1~0.3%p이고 모델마다 방향이 반대라서, STE를 쓰는 비볼록 최적화에서 초기값과 경로가 다른 데서 오는 차이로 보는 것이 맞습니다.</p>
+<p><b>실용적인 선택은 Linear 단위 목표 + s=1 초기값 + 스케일 공유</b>입니다. 두 모델 모두에서 안정적이고, 블록 forward 없이 Linear마다 병렬로 학습할 수 있습니다. 스케일을 공유해서 접어 넣을 수 있게 만드는 비용은 0.07~0.08%p뿐입니다. OLMo-2는 GQA가 없어서 "접기 가능"이 "공유"와 같습니다. 다만 norm이 sublayer 뒤에 있어서 q/k/v·gate/up 입력은 norm에 접어 넣을 수 없고, 양자화 커널 안에서 곱해야 합니다.</p>
+<p><b>실제로 접어 넣은 결과</b>(<code>compare_smooth2.py</code>): "접기 가능" 형태로 학습한 스케일을 RMSNorm, v_proj, up_proj, 그리고 각 weight에 실제로 곱해 넣었습니다.</p>
+<ul>
+<li>BF16 BPB는 접기 전후 0.9183 → 0.9184로 같습니다. 모델이 계산하는 함수는 바뀌지 않았습니다.</li>
+<li>접은 가중치에 아무 변환 없는 E2M1을 쓰면 0.9536으로, 변환을 따로 적용한 0.9553과 거의 같습니다(4/6: 0.9488 대 0.9479).</li>
+</ul>
+<p>즉 <b>추론 때 추가 연산 없이 같은 효과가 납니다.</b> 접을 수 있게 하려고 스케일에 제약을 걸어서 생기는 손해는 4/6 기준 0.07%p뿐입니다(+3.15% → +3.22%).</p>
+<h3>backward GEMM에도 적용하면? (<code>bwd_smooth.py</code>)</h3>
+<p>Qwen2.5-0.5B에서 forward는 E2M1로 고정하고, backward GEMM 하나만 양자화했을 때의 weight gradient 상대 오차를 쟀습니다. 기준은 같은 forward에 BF16 backward로 구한 gradient입니다.</p>
+<div class="tw"><table>
+<tr><th>gradient 상대 오차 (E2M1 / E2M1-4/6)</th><th>DGRAD (출력 채널 축)</th><th>WGRAD (토큰 축)</th></tr>
+<tr><td>변환 없음</td><td class="n">0.241 / 0.231</td><td class="n">0.097 / 0.094</td></tr>
+<tr><td>H16</td><td class="n bad">0.261 / 0.242</td><td class="n bad">0.116 / 0.106</td></tr>
+<tr><td>UFP4</td><td class="n">0.235</td><td class="n">0.096</td></tr>
+<tr><td><b>smoothing (호출마다 계산, α=0.5)</b></td><td class="n good">0.227 / 0.206</td><td class="n good">0.073 / 0.067</td></tr>
+<tr><td>학습형 (DGRAD: 채널별 고정 스케일 / WGRAD: 토큰별 α)</td><td class="n">0.227 / 0.221</td><td class="n">0.072 / 0.066</td></tr>
+</table></div>
+<p>backward에서도 smoothing이 UFP4보다 좋습니다. WGRAD 오차는 25~31%, DGRAD 오차는 6~15% 줄었습니다. 학습형은 공식으로 정한 스케일과 거의 같았습니다(WGRAD에서는 Linear 대부분이 α≈0.4를 골랐습니다). 그래서 backward에는 <b>calibration 없이 호출마다 계산하는 smoothing을 양자화 커널 안에서 처리하는 방식</b>이 실용적입니다.</p>
+<h3>FP4로 학습한 모델에 학습 후에만 T를 넣으면?</h3>
+<p>변환 없이 E2M1로 학습한 모델(Stage 1 e2m1_rtn)은 학습 때와 같은 E2M1로 추론할 때 가장 좋았습니다(val 3.7883). 학습이 끝난 뒤 smoothing이나 학습형 대각을 넣으면 오히려 0.008~0.013 나빠졌습니다. 모델이 학습 때의 반올림 방식에 적응해 있기 때문입니다. 반면 BF16으로 학습한 모델에서는 같은 방법이 PTQ 손해를 +0.031에서 +0.024로 줄였습니다. 따라서 FP4로 학습한다면 T는 학습 중에 써야 합니다.</p>
+
+<h2 id="r15">⑮ 민감한 위치만 FP8로 남기기</h2>
+<p><b>레이어·채널 단위</b>(Qwen2.5-0.5B, FPROP W4A4, held-out loss; BF16 2.7749, 전부 FP4 2.9265)</p>
+<ul>
+<li><b>레이어 단위</b>: Linear 하나만 FP4로 바꿨을 때 loss가 얼마나 오르는지(perturbation)로 민감한 Linear를 골라 FP8로 남겼습니다. 파라미터 25% 예산에서 2.847로, "첫·마지막 레이어 남기기"(2.870)와 무작위(2.890)보다 좋았습니다. 레이어별 출력 SQNR은 loss 민감도와 거의 무관했습니다(순위 상관 0.02).</li>
+<li><b>채널 단위</b>: 고르는 기준(값의 크기, 출력 perturbation, gradient 가중)에 따른 차이가 0.01 이내였습니다. 채널 1%만 FP8로 남겨도 레이어 10%를 남긴 것과 비슷한 효과였습니다.</li>
+</ul>
+<p><b>operand 위치 단위</b>(<code>role_sens2.py</code>): 각 operand만 FP4로 바꿨을 때를 비교했습니다. forward 위치는 loss 변화로, backward 위치는 gradient 상대 오차로 쟀습니다. backward는 forward를 FP4로 고정하고, 같은 forward에서 BF16 backward로 구한 gradient를 기준으로 삼았습니다.</p>
+<div class="tw"><table>
+<tr><th>설정</th><th>값</th></tr>
+<tr><td>fwd W만 FP4 / fwd X만 FP4 (loss 증가)</td><td class="n">+0.092 / +0.072</td></tr>
+<tr><td>backward 전부 FP4 / 전부 FP8 (gradient 오차)</td><td class="n">0.290 / 0.061</td></tr>
+<tr><td><b>DGRAD만 FP8</b> / WGRAD만 FP8</td><td class="n"><b>0.132</b> / 0.263</td></tr>
+<tr><td>하나만 FP4: dgrad Wᵀ / dgrad dY / wgrad dYᵀ / wgrad Xᵀ</td><td class="n">0.202 / 0.167 / 0.101 / 0.065</td></tr>
+</table></div>
+<p>한 step의 gradient 오차로만 보면 DGRAD가 가장 민감합니다. 그런데 <b>실제 학습(⑯)에서는 FPROP을 FP8로 남기는 것이 가장 효과가 컸습니다</b>(FPROP +0.028, WGRAD +0.054, DGRAD +0.057). 한 step의 대리 지표만으로 학습 결과를 예측할 수는 없다는 뜻입니다.</p>
+<p class="note">선행연구: SNIP(arXiv 2602.01410, ASPLOS'26)이 Linear × {입력, weight, gradient} 단위로 잡음을 주입해 민감도를 재고 FP8/FP4를 고릅니다. 따라서 레이어·operand 단위 아이디어 자체는 이미 있습니다. 그 밖에 FGMP(블록 단위, Fisher 기반)와 TetraJet-v2·CHON(값 크기 기반 채널 선택)이 있습니다.</p>
+
+<h2 id="r16">⑯ Stage 1: 실제 FP4 학습</h2>
+<p>6,600만 파라미터 Llama 구조 모델을 DCLM 3.9억 토큰으로 학습했습니다(6,000 step × 65,536 토큰). 블록 안 Linear의 GEMM 3종을 FP4로 에뮬레이션했고, embedding·lm_head·attention BMM은 BF16으로 두었습니다. 각 설정은 seed 1개로 돌렸고, BF16만 seed 2개로 잡음 수준을 쟀습니다(±0.005).</p>
+<figure><img src="data:image/png;base64,{{fig15}}" alt="Stage 1"><figcaption>그림 15. 왼쪽: val loss 곡선. 오른쪽: 최종 val loss에서 BF16 평균을 뺀 값.</figcaption></figure>
+<ul>
+<li><b>논문의 주장이 학습에서도 재현됩니다.</b> 같은 조건(H16 + dY SR)에서 균일 격자(UFP4, +0.041)가 E2M1(+0.061)보다 0.020 좋았습니다.</li>
+<li><b>E2M1에서는 H16을 WGRAD에만 거는 것이 낫습니다.</b> NVFP4식(+0.050)이 GEMM 전체에 H16을 건 경우(+0.061)보다 좋았습니다.</li>
+<li><b>GEMM 하나를 FP8로 남긴다면 FPROP이 가장 효과적입니다</b>(+0.028).</li>
+<li><b>RHT 대신 4/6, RPERM, outlier FP8, smoothing을 쓴 설정은 처음에는 모두 NVFP4식보다 나빴습니다</b>(+0.058~0.070). 그런데 이 설정들은 dY를 RTN으로 양자화했고, NVFP4식과 UFP4는 SR을 썼습니다. 그래서 dY에 SR을 쓰는 버전을 따로 돌려 두 효과를 분리했습니다.</li>
+<li><b>dY의 SR은 모든 설정에서 이득입니다.</b>
+<ul>
+<li>E2M1: +0.070 → +0.050. NVFP4식(+0.050)과 같으므로, WGRAD에 H16을 거는 효과는 없었습니다.</li>
+<li>E2M1-4/6: +0.066 → +0.046</li>
+<li>smoothing: +0.058 → +0.053</li>
+</ul></li>
+<li><b>회전 없는 E2M1-4/6 + smoothing + dY SR이 UFP4와 같아졌습니다.</b> seed 2개 평균이 +0.039(+0.043, +0.035)로, UFP4 +0.038(+0.041, +0.034)과 차이가 잡음 범위 안입니다. 즉 학습에서도 E2M1 격자를 유지한 채 회전 없이 UFP4 수준에 도달할 수 있습니다.</li>
+</ul>
+
+<h2 id="r17">⑰ byte-level 모델은 FP4에 더 강한가? 그리고 다른 4비트 형식</h2>
+<p><b>공개 모델 비교</b>(DCLM 500바이트 창 200개, batch 1, FPROP 양자화 후 BPB 증가): byte-level인 BLT-1B는 E2M1에서 +4.75%로 가장 강했습니다. 반면 UFP4에서는 +7.36%로 오히려 약했습니다. 원인은 byte 단위로 동작하는 local encoder/decoder로, 이 부분만 따로 보면 E2M1 +2.6%에서 UFP4 +5.6%로 늘어납니다. 비교한 subword 모델들의 E2M1 손해는 +5.7~13.2%였습니다.</p>
+<p><b>다른 4비트 형식</b>(<code>fp4_formats.py</code>, 합성 데이터): 4비트 형식은 지수·가수 비트 배분에 따라 E3M0, E2M1, E1M2, E0M3이 있습니다. 이 중 E0M3는 E1M2, 대칭 INT4와 같은 균일 격자입니다. E3M0은 로그 격자라서 Gaussian 데이터에서 E2M1보다 5 dB 낮았고, RHT 없이 극단적인 outlier 채널이 있을 때만 E2M1을 이겼습니다(22.2 dB 대 21.2 dB). 지수 비트가 많을수록 "튀는 값 하나 + 나머지는 작은" 블록에 유리하고, RHT는 블록을 균일 격자 쪽 분포로 옮깁니다.</p>
+
+<h2 id="r18">⑱ 선행연구와의 관계: MR-GPTQ (ICLR 2026)의 Lemma 2</h2>
+<p>Egiazarian et al., "Bridging the Gap Between Promise and Performance for Microscaling FP4 Quantization"(MR-GPTQ, ICLR 2026)는 원래의 weight·활성값을 Laplace 분포로, Hadamard 변환 후를 Normal 분포로 모델링합니다. 이를 바탕으로 두 가지를 보입니다.</p>
+<ul>
+<li><b>Remark 2와 Lemma 1</b>: absmax 스케일을 쓰면 블록의 최댓값 원소는 오차 없이 보존됩니다. 회전을 하면 이 최댓값 원소의 오차가 블록 전체로 퍼집니다.</li>
+<li><b>Lemma 2</b>: dead-zone(정규화 값이 q<sub>min</sub>/2 아래로 떨어져 0이 되는 구간)을 피해 남는 질량을 비교하면, 블록이 작을 때(G가 작을 때)는 Laplace 쪽 MSE가 작고 G가 커지면 Normal 쪽이 이깁니다. 즉 "G가 작으면 변환이 손해이고, G가 커지면 효과적"이라는 crossover를 예측합니다.</li>
+</ul>
+<p>이 논문도 NVFP4(G=16) + RTN에서 Hadamard가 손해라고 보고합니다. 우리가 ⑧에서 정량화한 "absmax 원소에 에너지가 몰려 있고 RHT가 이를 흩어 버린다"는 관찰은 Remark 2와 같은 이야기입니다.</p>
+<p>다만 Lemma 2는 격자의 <b>아래쪽(dead-zone)</b>만 다룹니다. 그래서 격자의 모양에 따라 결과가 어떻게 달라지는지 직접 계산해 봤습니다(<code>crossover_check.py</code>, Laplace 합성 데이터, 스케일 양자화 없음).</p>
+<div class="tw"><table>
+<tr><th>상대 MSE (dB)</th><th>E2M1: 회전 없음 / 실제 Hadamard</th><th>균일: 회전 없음 / 실제 Hadamard</th></tr>
+<tr><td>G = 4</td><td class="n"><b>24.32</b> / 22.60</td><td class="n">24.37 / <b>25.48</b></td></tr>
+<tr><td>G = 8</td><td class="n"><b>22.22</b> / 21.27</td><td class="n">21.84 / <b>23.30</b></td></tr>
+<tr><td>G = 16 (NVFP4)</td><td class="n"><b>20.80</b> / 20.43</td><td class="n">19.89 / <b>21.72</b></td></tr>
+<tr><td>G = 32 (MXFP4)</td><td class="n">19.79 / <b>19.88</b></td><td class="n">18.34 / <b>20.47</b></td></tr>
+<tr><td>G = 128</td><td class="n">18.35 / <b>19.28</b></td><td class="n">15.89 / <b>18.73</b></td></tr>
+</table></div>
+<p>회전이 이기기 시작하는 지점(crossover)은 <b>E2M1이 G=32, 균일 격자가 G=4</b>입니다. 그래서 G=16에서는 E2M1이 아직 회전이 손해인 쪽에, 균일 격자는 이미 회전이 이득인 쪽에 있습니다. 이것이 UFP4 논문의 관찰을 설명합니다.</p>
+<div class="tw"><table>
+<tr><th>G=16, 오차가 나오는 구간</th><th>dead-zone (Lemma 2가 보는 곳)</th><th>중간</th><th>위쪽 두 bin (⑧)</th></tr>
+<tr><td>E2M1, 회전 없음</td><td class="n">6.8%</td><td class="n">45.5%</td><td class="n">47.7%</td></tr>
+<tr><td>E2M1, 회전 후</td><td class="n">1.8%</td><td class="n">31.6%</td><td class="n bad">66.6%</td></tr>
+<tr><td>균일, 회전 없음</td><td class="n bad">25.0%</td><td class="n">70.6%</td><td class="n">4.4%</td></tr>
+<tr><td>균일, 회전 후</td><td class="n">12.2%</td><td class="n">77.5%</td><td class="n">10.4%</td></tr>
+</table></div>
+<ul>
+<li><b>균일 격자에서는 Lemma 2의 메커니즘이 실제로 작동합니다.</b> 가장 작은 레벨이 커서(q<sub>min</sub> = 1/7) dead-zone 손실이 오차의 25%를 차지하는데, 회전이 이를 절반으로 줄입니다.</li>
+<li><b>E2M1은 0 근처가 촘촘해서(q<sub>min</sub> = 1/12) dead-zone 손실이 7%뿐입니다.</b> 회전해도 아래쪽에서 얻을 것이 거의 없습니다. 대신 오차가 간격이 큰 위쪽 bin으로 몰리고(48% → 67%), absmax 원소가 정확히 보존되던 이점도 사라집니다.</li>
+</ul>
+<p><b>정리</b>: Hadamard가 이득인지 손해인지는 블록 크기 G뿐 아니라 <b>격자에서 어느 쪽 간격이 성긴지</b>에 달려 있습니다. 아래쪽이 성긴 균일 격자는 dead-zone이 줄어서 이득을 보고, 위쪽이 성긴 E2M1은 오차가 위쪽 bin으로 몰려서 손해를 봅니다. UFP4 논문이 이 현상을 "shrinkage bias"로 설명한 것보다는, MR-GPTQ의 블록 크기 분석에 격자 모양을 더한 설명이 데이터와 더 잘 맞습니다.</p>
+
+<h2 id="r20">⑳ E2M1(NVFP4)로 추론하면 얼마나 빨라지나: Blackwell 실측</h2>
+<p>snu233의 <b>RTX PRO 6000 Blackwell Max-Q</b>(sm_120, 96 GB)에서 측정했습니다(torch 2.11 + cu128). NVFP4 GEMM은 <code>torch._scaled_mm</code>에 <code>float4_e2m1fn_x2</code>와 E4M3 1×16 블록 스케일을 넘겨 cuBLAS 네이티브 FP4 커널로 실행했습니다. 값은 랜덤이라 <b>시간만</b> 의미가 있습니다. 코드는 <code>latency/gemm_bench.py</code>, <code>latency/e2e_bench.py</code>에 있습니다.</p>
+<h3>1) GEMM만: 디코더 레이어 하나의 Linear 4개 합계, BF16 대비 배수</h3>
+<div class="tw"><table>
+<tr><th>토큰 수 M</th><th>1.3B급 FP8</th><th>1.3B급 NVFP4</th><th>Qwen2.5-1.5B FP8</th><th>Qwen2.5-1.5B NVFP4</th><th>Llama-3-8B FP8</th><th>Llama-3-8B NVFP4</th></tr>
+<tr><td>1 (decode)</td><td class="n">0.87×</td><td class="n bad">0.69×</td><td class="n">0.87×</td><td class="n bad">0.67×</td><td class="n">1.97×</td><td class="n">1.24×</td></tr>
+<tr><td>32</td><td class="n">0.97×</td><td class="n bad">0.80×</td><td class="n">0.89×</td><td class="n bad">0.70×</td><td class="n">2.29×</td><td class="n">1.61×</td></tr>
+<tr><td>128</td><td class="n">1.01×</td><td class="n">0.95×</td><td class="n">1.12×</td><td class="n">1.08×</td><td class="n">1.66×</td><td class="n">1.95×</td></tr>
+<tr><td>512</td><td class="n">1.33×</td><td class="n">1.82×</td><td class="n">1.34×</td><td class="n">1.61×</td><td class="n">1.64×</td><td class="n good">3.03×</td></tr>
+<tr><td>2048 (prefill)</td><td class="n">1.56×</td><td class="n good">2.84×</td><td class="n">1.53×</td><td class="n good">2.44×</td><td class="n">1.60×</td><td class="n good">3.20×</td></tr>
+<tr><td>8192</td><td class="n">1.52×</td><td class="n good">2.98×</td><td class="n">1.52×</td><td class="n good">3.08×</td><td class="n">1.72×</td><td class="n good">3.43×</td></tr>
+</table></div>
+<p>토큰이 많으면(M ≥ 512) NVFP4 GEMM은 BF16보다 1.6~3.4배, FP8보다 약 2배 빠릅니다(이론 최대는 BF16 대비 4배). 토큰이 적으면 cuBLAS block-scaled FP4 커널은 행을 128개로 패딩해야 하고 작은 M에 최적화되어 있지 않아, 작은 모델에서는 BF16보다도 느립니다.</p>
+<h3>2) 모델 전체 forward</h3>
+<figure><img src="data:image/png;base64,{{fig18}}" alt="모델 전체 지연시간"><figcaption>그림 18. 랜덤 가중치 Llama형 디코더 전체 forward의 BF16 대비 속도. 모든 forward를 CUDA Graph로 캡처해 CPU 오버헤드를 제거했습니다. decode는 context 4096(B=128은 2048)의 BF16 KV cache를 쓰고, embedding과 lm_head는 BF16으로 두었습니다.</figcaption></figure>
+<div class="tw"><table>
+<tr><th>모델 형태</th><th>시나리오</th><th>BF16 (ms)</th><th>FP8</th><th>NVFP4 GEMM만</th><th>NVFP4</th><th>NVFP4-4/6</th><th>NVFP4 + H16</th></tr>
+<tr><td>1.3B급</td><td>prefill 2k</td><td class="n">27.1</td><td class="n">1.36×</td><td class="n">2.37×</td><td class="n">1.74×</td><td class="n">1.83×</td><td class="n">1.60×</td></tr>
+<tr><td>1.3B급</td><td>decode B=1</td><td class="n">3.15</td><td class="n">1.19×</td><td class="n">1.05×</td><td class="n bad">0.92×</td><td class="n bad">0.92×</td><td class="n bad">0.84×</td></tr>
+<tr><td>1.3B급</td><td>decode B=32</td><td class="n">21.5</td><td class="n">1.04×</td><td class="n">1.03×</td><td class="n">1.04×</td><td class="n">1.02×</td><td class="n">1.02×</td></tr>
+<tr><td>Qwen2.5-1.5B</td><td>prefill 2k</td><td class="n">29.0</td><td class="n">1.34×</td><td class="n">2.10×</td><td class="n">1.36×</td><td class="n">1.56×</td><td class="n">1.21×</td></tr>
+<tr><td>Qwen2.5-1.5B</td><td>decode B=1</td><td class="n">3.55</td><td class="n">1.16×</td><td class="n">1.02×</td><td class="n bad">0.89×</td><td class="n bad">0.88×</td><td class="n bad">0.82×</td></tr>
+<tr><td>Qwen2.5-1.5B</td><td>decode B=128</td><td class="n">9.78</td><td class="n">1.13×</td><td class="n">1.22×</td><td class="n">1.15×</td><td class="n">1.14×</td><td class="n">1.10×</td></tr>
+<tr><td>Llama-3-8B</td><td>prefill 2k</td><td class="n">129.5</td><td class="n">1.46×</td><td class="n good">2.61×</td><td class="n good">1.98×</td><td class="n good">2.14×</td><td class="n">1.79×</td></tr>
+<tr><td>Llama-3-8B</td><td>prefill 8k</td><td class="n">559.5</td><td class="n">1.49×</td><td class="n">2.30×</td><td class="n">1.66×</td><td class="n">1.91×</td><td class="n">1.55×</td></tr>
+<tr><td>Llama-3-8B</td><td>decode B=1</td><td class="n">12.1</td><td class="n">1.67×</td><td class="n">1.64×</td><td class="n">1.50×</td><td class="n">1.48×</td><td class="n">1.40×</td></tr>
+<tr><td>Llama-3-8B</td><td>decode B=32</td><td class="n">25.3</td><td class="n">1.33×</td><td class="n">1.37×</td><td class="n">1.35×</td><td class="n">1.33×</td><td class="n">1.31×</td></tr>
+</table></div>
+<ul>
+<li><b>prefill(연산 병목)</b>: E2M1/NVFP4로 바꾸면 Llama-8B 형태에서 <b>약 2배</b>(1.66~2.14×), 1.5B 이하에서 1.4~1.8배 빨라집니다. FP8(1.3~1.5배)보다 확실히 낫습니다. 활성값 양자화를 앞 연산에 완전히 융합하면 2.1~2.6배까지 기대할 수 있습니다("GEMM만" 열).</li>
+<li><b>decode(메모리 병목)</b>: 이득이 훨씬 작습니다. 8B, B=1에서 1.5배로 FP8(1.67배)과 비슷하고, 작은 모델에서는 오히려 느립니다. 원인은 두 가지입니다.
+<ul>
+<li>cuBLAS FP4 커널이 작은 M에 비효율적입니다. 이론상 weight 바이트가 BF16의 약 1/3.6이므로 decode에서 FP4가 가장 유리해야 하지만, 실측 GEMM은 그만큼 빨라지지 않았습니다.</li>
+<li>배치가 커지면 BF16 KV cache를 읽는 어텐션이 시간을 지배합니다. Linear만 FP4로 바꿔서는 한계가 있고, KV cache 양자화(FP8/FP4 KV)가 함께 필요합니다.</li>
+</ul></li>
+<li><b>본 연구의 방법들이 추가하는 비용</b>:
+<ul>
+<li><b>4/6</b>: 블록마다 두 스케일로 오차를 계산하는 연산이 추가됩니다. 이 측정에서는 기본 양자화보다 오히려 빨랐는데, 제 비융합 <code>torch.compile</code> 구현에서 생긴 현상으로 보입니다. 즉 4/6의 비용은 측정 잡음 수준이고, 커널을 최적화하면 기본 양자화와 비슷한 수준의 작은 비용일 것입니다.</li>
+<li><b>H16(RHT)</b>: 기본 양자화보다 prefill이 5~10% 느렸습니다(16×16 행렬곱 추가).</li>
+<li><b>접은(folded) 그룹별 대각 smoothing</b>: RMSNorm 가중치와 이전 Linear에 흡수되므로 추론 비용이 0입니다.</li>
+</ul>
+<b>정확도와 속도를 함께 보면, 회전 없는 E2M1-4/6 + 접은 smoothing이 E2M1+H16이나 UFP4(H16 필요)보다 빠르면서 정확도도 높은 조합입니다.</b></li>
+</ul>
+<h2 id="r21">㉑ 8B 모델 W4A4 PTQ: 형식 × 변환 × GPTQ, 공식 MR-GPTQ와 비교</h2>
+<p>작은 모델(⑭)에서 본 "회전 없는 E2M1 + 학습형 대각 스케일" 결과를 7~8B 모델(Llama-3-8B, Llama-3.1-8B, Qwen3-8B)과 downstream 과제로 확장했습니다. 블록 크기와 스케일 형식을 바꿔(NVFP4 G16, NVFP4-G32, MXFP4) 각 결론이 어디까지 일반화되는지 확인했고, <b>공식 MR-GPTQ</b>(IST-DASLab FP-Quant)와 비교했습니다(<code>ptq8b.py</code>, <code>ptq8b/</code>).</p>
+<ul>
+<li><b>설정</b>
+<ul>
+<li>양자화 범위: 디코더의 모든 Linear를 W4A4로 양자화했습니다.</li>
+<li>스케일 형식:
+<ul>
+<li>NVFP4: 블록 16, E4M3 스케일 + FP32 텐서 스케일</li>
+<li>NVFP4-G32: 블록 32, E4M3 스케일. 표준이 아닌 형식으로, 블록 크기만 바꾼 대조군입니다.</li>
+<li>MXFP4(OCP MX 표준): 블록 32, E8M0(2의 거듭제곱) 스케일. 4/6에 해당하는 것은 지수 e와 e+1 중 MSE가 작은 쪽을 고르는 것으로 정의했습니다.</li>
+</ul></li>
+<li>회전 H: 블록 크기와 같은 G×G Hadamard입니다.</li>
+<li>대각: 같은 입력을 쓰는 Linear끼리 스케일을 공유하고, RMSNorm·v_proj·up_proj에 접어 넣어 추론 비용이 0입니다. 출력 MSE를 STE로 최소화했고, calibration은 DCLM 8×1024 토큰입니다. +H 변형은 회전 후 양자화를 거치는 STE로 학습했습니다.</li>
+<li>GPTQ(우리 구현): Hessian은 DCLM 128×1024 토큰(스케일 학습 데이터와 겹치지 않음), act-order 없음, 비순차 방식입니다.</li>
+<li>MR-GPTQ(공식 코드, 논문 권장 설정): GPTQ + act-order + MSE weight 스케일 탐색 + Hadamard(NVFP4 16, MXFP4 128, 32 변형도 측정). calibration은 fineweb-edu 128×2048 토큰입니다.</li>
+</ul></li>
+<li><b>평가</b>: WikiText-2 PPL(seq 2048)과 lm-eval 0-shot Avg5(HS/ARC-E/ARC-C/PIQA는 acc_norm, WG는 acc)</li>
+</ul>
+<figure><img src="data:image/png;base64,{{fig20}}" alt="8B PTQ"><figcaption>그림 20. BF16 대비 WikiText-2 PPL 증가(%). 색은 열(모델 × RTN/GPTQ)마다의 순위입니다(초록 = 좋음).</figcaption></figure>
+<h3>NVFP4 (G16, E4M3) — 각 칸: PPL / Avg5, 초록 = 열 최선</h3>
+<div class="tw"><table><tr><th>방법</th><th>Llama-3-8B RTN</th><th>Llama-3-8B GPTQ</th><th>Llama-3.1-8B RTN</th><th>Llama-3.1-8B GPTQ</th><th>Qwen3-8B RTN</th><th>Qwen3-8B GPTQ</th></tr><tr><td>BF16</td><td class="n">6.14<br><span style="font-size:.8em">72.8</span></td><td class="n">–</td><td class="n">6.24<br><span style="font-size:.8em">73.7</span></td><td class="n">–</td><td class="n">9.73<br><span style="font-size:.8em">71.4</span></td><td class="n">–</td></tr><tr><td>E2M1</td><td class="n">6.89<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.7</span></td><td class="n">8.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.9</span></td><td class="n">6.95<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td><td class="n">6.91<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.9</span></td><td class="n">10.10<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.9</span></td><td class="n">10.18<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td></tr><tr><td>E2M1-4/6</td><td class="n">6.79<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.2</span></td><td class="n">8.39<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">6.86<br><span style="font-size:.8em;color:var(--ink2,#52514e)">72.2</span></td><td class="n">7.06<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td><td class="n">10.19<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td><td class="n">10.13<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.5</span></td></tr><tr><td>E2M1 + H</td><td class="n">7.21<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">6.87<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.6</span></td><td class="n">7.15<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.5</span></td><td class="n">6.89<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.3</span></td><td class="n">10.55<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.8</span></td><td class="n">10.30<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.7</span></td></tr><tr><td>UFP4</td><td class="n">6.87<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.7</span></td><td class="n good">6.63<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.7</span></td><td class="n">6.92<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.9</span></td><td class="n good">6.70<br><span style="font-size:.8em;color:var(--ink2,#52514e)">72.8</span></td><td class="n">10.72<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.7</span></td><td class="n">10.13<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.3</span></td></tr><tr><td>SQ + 4/6</td><td class="n">6.78<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.7</span></td><td class="n">6.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.1</span></td><td class="n">6.83<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.8</span></td><td class="n">6.80<br><span style="font-size:.8em;color:var(--ink2,#52514e)">72.2</span></td><td class="n">10.19<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.7</span></td><td class="n">10.13<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.9</span></td></tr><tr><td>대각</td><td class="n">6.78<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.1</span></td><td class="n">6.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.8</span></td><td class="n">6.83<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.2</span></td><td class="n">6.81<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.6</span></td><td class="n good">10.04<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td><td class="n">10.20<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.8</span></td></tr><tr><td>대각 + 4/6</td><td class="n">6.69<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.7</span></td><td class="n">6.66<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.3</span></td><td class="n good">6.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.4</span></td><td class="n">6.74<br><span style="font-size:.8em;color:var(--ink2,#52514e)">72.3</span></td><td class="n">10.07<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td><td class="n good">10.01<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td></tr><tr><td>대각 + H</td><td class="n">6.83<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">6.78<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.5</span></td><td class="n">6.90<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.3</span></td><td class="n">6.86<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.5</span></td><td class="n">10.52<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">10.28<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td></tr><tr><td>대각 + 4/6 + H</td><td class="n good">6.69<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.1</span></td><td class="n">6.64<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.4</span></td><td class="n">6.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.8</span></td><td class="n">6.73<br><span style="font-size:.8em;color:var(--ink2,#52514e)">72.6</span></td><td class="n">10.21<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td><td class="n">10.18<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td></tr><tr><td>MR-GPTQ (공식, GPTQ 열만)</td><td class="n">–</td><td class="n">6.87<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.3</span></td><td class="n">–</td><td class="n">6.89<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.8</span></td><td class="n">–</td><td class="n">10.23<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.9</span></td></tr></table></div>
+<h3>NVFP4-G32 (E4M3) — 블록 크기만 바꾼 대조군</h3>
+<div class="tw"><table><tr><th>방법</th><th>Llama-3-8B RTN</th><th>Llama-3.1-8B RTN</th><th>Qwen3-8B RTN</th></tr><tr><td>BF16</td><td class="n">6.14<br><span style="font-size:.8em">72.8</span></td><td class="n">6.24<br><span style="font-size:.8em">73.7</span></td><td class="n">9.73<br><span style="font-size:.8em">71.4</span></td></tr><tr><td>E2M1</td><td class="n">7.08<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.4</span></td><td class="n">7.11<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.6</span></td><td class="n good">10.19<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.1</span></td></tr><tr><td>E2M1-4/6</td><td class="n">7.02<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.9</span></td><td class="n">7.08<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.9</span></td><td class="n">10.29<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.9</span></td></tr><tr><td>E2M1 + H</td><td class="n">7.39<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.4</span></td><td class="n">7.39<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.5</span></td><td class="n">10.95<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.1</span></td></tr><tr><td>UFP4</td><td class="n">7.10<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">7.16<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.0</span></td><td class="n">10.58<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.9</span></td></tr><tr><td>SQ + 4/6</td><td class="n">6.99<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.6</span></td><td class="n">7.03<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.6</span></td><td class="n">10.42<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td></tr><tr><td>대각</td><td class="n">6.91<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.7</span></td><td class="n">6.98<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td><td class="n">10.33<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.0</span></td></tr><tr><td>대각 + 4/6</td><td class="n good">6.86<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n good">6.90<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.0</span></td><td class="n">10.22<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.8</span></td></tr><tr><td>대각 + H</td><td class="n">6.93<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td><td class="n">6.98<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.0</span></td><td class="n">10.35<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.4</span></td></tr></table></div>
+<h3>MXFP4 (G32, E8M0)</h3>
+<div class="tw"><table><tr><th>방법</th><th>Llama-3-8B RTN</th><th>Llama-3-8B GPTQ</th><th>Llama-3.1-8B RTN</th><th>Llama-3.1-8B GPTQ</th><th>Qwen3-8B RTN</th><th>Qwen3-8B GPTQ</th></tr><tr><td>BF16</td><td class="n">6.14<br><span style="font-size:.8em">72.8</span></td><td class="n">–</td><td class="n">6.24<br><span style="font-size:.8em">73.7</span></td><td class="n">–</td><td class="n">9.73<br><span style="font-size:.8em">71.4</span></td><td class="n">–</td></tr><tr><td>E2M1</td><td class="n">8.31<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.2</span></td><td class="n">–</td><td class="n">8.36<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.2</span></td><td class="n">–</td><td class="n">11.89<br><span style="font-size:.8em;color:var(--ink2,#52514e)">65.8</span></td><td class="n">–</td></tr><tr><td>E2M1-4/6</td><td class="n">7.88<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.8</span></td><td class="n">10.54<br><span style="font-size:.8em;color:var(--ink2,#52514e)">65.2</span></td><td class="n">7.75<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.9</span></td><td class="n">8.58<br><span style="font-size:.8em;color:var(--ink2,#52514e)">61.9</span></td><td class="n">11.00<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.1</span></td><td class="n">10.84<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.7</span></td></tr><tr><td>E2M1 + H</td><td class="n">7.78<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.8</span></td><td class="n">7.26<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td><td class="n">7.76<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.3</span></td><td class="n">7.42<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.2</span></td><td class="n">11.49<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.6</span></td><td class="n">10.61<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.0</span></td></tr><tr><td>UFP4</td><td class="n">7.90<br><span style="font-size:.8em;color:var(--ink2,#52514e)">66.0</span></td><td class="n">–</td><td class="n">7.98<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.2</span></td><td class="n">–</td><td class="n">11.22<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.2</span></td><td class="n">–</td></tr><tr><td>SQ + 4/6</td><td class="n">7.74<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.9</span></td><td class="n">–</td><td class="n">7.71<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.2</span></td><td class="n">–</td><td class="n">10.94<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.4</span></td><td class="n">–</td></tr><tr><td>대각</td><td class="n">8.05<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.6</span></td><td class="n">8.10<br><span style="font-size:.8em;color:var(--ink2,#52514e)">64.9</span></td><td class="n">8.06<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.0</span></td><td class="n">8.04<br><span style="font-size:.8em;color:var(--ink2,#52514e)">66.9</span></td><td class="n">11.90<br><span style="font-size:.8em;color:var(--ink2,#52514e)">66.9</span></td><td class="n">11.05<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.7</span></td></tr><tr><td>대각 + 4/6</td><td class="n">7.50<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.6</span></td><td class="n">7.55<br><span style="font-size:.8em;color:var(--ink2,#52514e)">66.2</span></td><td class="n">7.55<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.5</span></td><td class="n">7.65<br><span style="font-size:.8em;color:var(--ink2,#52514e)">67.5</span></td><td class="n">11.18<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.8</span></td><td class="n">10.80<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.4</span></td></tr><tr><td>대각 + H</td><td class="n">7.21<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.8</span></td><td class="n">7.41<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.2</span></td><td class="n">7.21<br><span style="font-size:.8em;color:var(--ink2,#52514e)">71.1</span></td><td class="n">7.19<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.9</span></td><td class="n">10.75<br><span style="font-size:.8em;color:var(--ink2,#52514e)">68.9</span></td><td class="n">10.54<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td></tr><tr><td>대각 + 4/6 + H</td><td class="n good">7.12<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.3</span></td><td class="n good">7.04<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.3</span></td><td class="n good">7.13<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.4</span></td><td class="n good">7.08<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.5</span></td><td class="n good">10.56<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.3</span></td><td class="n good">10.31<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.1</span></td></tr><tr><td>MR-GPTQ (공식, GPTQ 열만)</td><td class="n">–</td><td class="n">7.18<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.9</span></td><td class="n">–</td><td class="n">7.22<br><span style="font-size:.8em;color:var(--ink2,#52514e)">70.3</span></td><td class="n">–</td><td class="n">10.53<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.7</span></td></tr><tr><td>MR-GPTQ, H 32 (공식)</td><td class="n">–</td><td class="n">7.25<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.8</span></td><td class="n">–</td><td class="n">7.21<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.3</span></td><td class="n">–</td><td class="n">10.41<br><span style="font-size:.8em;color:var(--ink2,#52514e)">69.3</span></td></tr></table></div>
+<ul>
+<li><b>공식 MR-GPTQ보다 우리 방법이 두 형식, 세 모델 모두에서 PPL이 낮습니다.</b>
+<ul>
+<li>NVFP4: 대각 + 4/6 + GPTQ 6.66 / 6.74 / 10.02 대 MR-GPTQ 6.87 / 6.89 / 10.24</li>
+<li>MXFP4: 대각 + 4/6 + H + GPTQ 7.04 / 7.08 / 10.31 대 MR-GPTQ 7.18 / 7.22 / 10.53</li>
+<li>차이는 0.10~0.22로, 대각 스케일 학습의 실행 간 편차(약 0.1)보다 큽니다.</li>
+<li>Avg5는 같거나 0.6%p 이내로 높아서, 잡음 범위입니다.</li>
+<li>GPTQ 없는 RTN만으로도 NVFP4에서는 대각 + 4/6(6.69 / 6.76 / 10.08)이 MR-GPTQ보다 낮습니다.</li>
+</ul></li>
+<li><b>RTN에서 E4M3 스케일(NVFP4, G16·G32)의 최선은 회전 없는 대각입니다.</b>
+<ul>
+<li>회전 계열(E2M1 + H, UFP4)은 가장 나쁜 편입니다.</li>
+<li>대각 + 4/6에 H를 더해도 이득이 없습니다(Llama 6.69 / 6.77로 같고, Qwen3는 10.21로 오히려 나쁨).</li>
+<li>블록을 32로 키운 NVFP4-G32에서도 순서가 같습니다.</li>
+</ul></li>
+<li><b>스케일 형식이 E8M0(MXFP4)이면 회전이 이득으로 바뀝니다.</b>
+<ul>
+<li>대각과 회전은 보완적이고, 대각 + 4/6 + H(+GPTQ)가 세 모델 모두에서 최선입니다.</li>
+<li>같은 G=32라도 E4M3 스케일에서는 회전이 손해이므로, 회전의 득실을 가르는 것은 블록 크기보다 스케일 형식입니다.</li>
+<li>해석(가설): 2의 거듭제곱 스케일은 블록 absmax를 격자 최댓값에 맞추지 못해 범위를 최대 2배까지 낭비하고, 회전이 블록 안의 분포를 고르게 만들어 이 손실을 줄입니다.</li>
+</ul></li>
+<li><b>GPTQ는 회전 방법을 크게 끌어올립니다.</b>
+<ul>
+<li>우리 구현의 UFP4 + GPTQ는 Llama 두 모델에서 6.63 / 6.70으로, 대각 + 4/6 + GPTQ(6.66 / 6.74)와 사실상 같습니다.</li>
+<li>회전도 대각 스케일도 없는 E2M1에는 GPTQ가 불안정합니다(Llama-3 6.89 → 8.77). 대각 스케일을 먼저 적용하면 안정됩니다.</li>
+</ul></li>
+</ul>
+<div class="note">한계와 주의:
+<ul>
+<li>대각 스케일 학습은 실행마다 결과가 조금씩 다릅니다(Qwen3 NVFP4-G32 대각: 두 노드에서 10.25와 10.33). 0.1 미만의 차이는 seed 반복 없이 확정할 수 없습니다.</li>
+<li>우리 GPTQ는 act-order와 스케일 탐색이 없는 단순 구현입니다. 처음에는 8k 토큰 Hessian으로 돌렸는데, K=14336에서 Hessian이 rank 부족이 되어 과적합했습니다. 표의 값은 131k 토큰 결과이고, 8k 결과는 <code>ptq8b/results_gptq8k/</code>에 보관했습니다.</li>
+<li>MR-GPTQ와 우리 방법은 calibration 데이터가 다릅니다(fineweb-edu 대 DCLM). WikiText-2는 두 데이터 모두에 속하지 않습니다.</li>
+<li>MR-GPTQ(공식)는 활성값의 FP32 텐서 스케일을 calibration에서 정한 정적 값으로 쓰고, 우리 구현은 호출마다 동적으로 계산합니다. 이 차이는 우리 쪽에 약간 유리할 수 있습니다. 블록(E4M3/E8M0) 스케일은 양쪽 모두 동적입니다.</li>
+<li>MR-GPTQ는 공식 코드(FP-Quant d2e3092, 수정 없음)를 우리 평가 방식으로 감싸 돌렸습니다. Qwen3에서는 transformers 4.57.6 호환을 위해 계산을 바꾸지 않는 속성 전달 shim을 넣었습니다. BF16 PPL(6.138 / 6.239 / 9.727)은 같은 경로에서 정확히 재현됐고, seed는 1개입니다.</li>
+<li>QuaRot·SpinQuant·FlatQuant 같은 전체 회전 기반 방법과 OmniQuant LET 원본은 아직 비교하지 않았습니다.</li>
+</ul></div>
+
+<h2 id="r22">㉒ 채널 스케일의 motivation 검증: 오차 구조, 민감도, 베이스라인, shift, 접기, 학습</h2>
+<p>"회전 대신 채널 스케일"이라는 주장을 method comparison으로 정리하기 위해 필요한 근거를 하나씩 확인했습니다. 대상은 Llama-3-8B, Llama-3.1-8B, Qwen3-8B이고(OLMo-2-1B는 접기 검증용), 분석 코드는 <code>ana8b.py</code>, <code>shift_ana.py</code>, <code>olmo_fold.py</code>, 결과는 <code>ana/</code>와 <code>ptq8b/records.json</code>에 있습니다.</p>
+<h3>1) 스케일을 적용하면 X와 W의 오차는 어떻게 변하는가</h3>
+<figure><img src="data:image/png;base64,{{fig21}}" alt="오차 구조"><figcaption>그림 21. 레이어·그룹 평균. 왼쪽: 변환 없음 대비 GEMM 출력 오차와 X·W 텐서 NMSE의 변화. 가운데·오른쪽: 활성값 X의 양자화 오차가 정규화 크기 구간별로 어디서 나오는지.</figcaption></figure>
+<ul>
+<li><b>학습한 대각 스케일은 X·W의 텐서 오차를 거의 바꾸지 않고(X +1~5%, W 0%) GEMM 출력 오차만 10~15% 줄입니다.</b> 오차의 총량이 아니라 위치를 바꾸는 것입니다. 상대 피연산자 값이 큰 채널의 오차를 줄이고, 덜 중요한 채널로 옮깁니다. 그래서 텐서 MSE가 아니라 출력 오차를 기준으로 스케일을 정해야 합니다.</li>
+<li>SmoothQuant는 출력 오차를 거의 줄이지 못합니다(Llama +3%, Qwen3 −6%).</li>
+<li><b>회전은 dead-zone 오차를 거의 없애지만, 오차를 간격이 큰 2~6 구간으로 몰아넣어 NVFP4에서는 출력 오차가 오히려 늘어납니다</b>(+3~5%). 이는 ⑧·⑱의 메커니즘을 8B 모델에서 다시 확인한 것입니다.</li>
+<li><b>MXFP4(E8M0)는 활성값 오차의 21~25%가 클리핑에서 나옵니다.</b> OCP 규칙은 지수를 내림으로 정하므로 블록 최댓값 근처의 값이 6을 넘으면 잘립니다. 회전은 블록 crest를 낮춰 클리핑을 16~17%로 줄이고 출력 오차를 21~26% 줄입니다. 채널 스케일만으로는 클리핑이 줄지 않습니다. 이것이 E8M0에서 회전이 다시 필요한 이유입니다.</li>
+<li>학습한 s와 SmoothQuant s의 log 상관은 0.19~0.27에 불과합니다. 학습한 s는 X를 SQ만큼 균등화하지 않고 W 쪽 불균일을 더 허용하는 다른 해입니다.</li>
+</ul>
+<h3>2) loss 민감도</h3>
+<figure><img src="data:image/png;base64,{{fig22}}" alt="민감도"><figcaption>그림 22. Linear 그룹 하나만 NVFP4-4/6으로 양자화했을 때의 NLL 증가를 층 깊이 4구간으로 합산(평가 창 48×1024 토큰).</figcaption></figure>
+<ul>
+<li>학습한 대각은 손해의 합을 37~43% 줄이고, 회전은 15~21% 늘립니다.</li>
+<li>손해는 gate/up 입력과 down, 그리고 <b>마지막 1/4 층</b>에 몰려 있습니다(Qwen3 35층 gate/up, Llama 31층·1층 down). 학습한 대각은 이 구간의 손해를 크게 줄입니다(Llama 마지막 구간 0.027 → 0.014).</li>
+</ul>
+<h3>3) seed 반복</h3>
+<div class="tw"><table><tr><th>WikiText-2 PPL (seed 0/1/2 평균 ± 표준편차)</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th></tr><tr><td>NVFP4 대각 + 4/6</td><td class="n">6.692 ± 0.010</td><td class="n">6.747 ± 0.014</td><td class="n">10.068 ± 0.038</td></tr><tr><td>NVFP4 대각</td><td class="n">6.780 ± 0.013</td><td class="n">6.839 ± 0.008</td><td class="n">10.117 ± 0.087</td></tr><tr><td>NVFP4 SmoothQuant + 4/6</td><td class="n">6.767 ± 0.015</td><td class="n">6.827 ± 0.007</td><td class="n">10.153 ± 0.056</td></tr><tr><td>NVFP4 대각 + 4/6 + GPTQ</td><td class="n">6.668 ± 0.009</td><td class="n">6.736 ± 0.013</td><td class="n">10.034 ± 0.050</td></tr><tr><td>NVFP4 UFP4 + GPTQ</td><td class="n">6.636 ± 0.006</td><td class="n">6.711 ± 0.014</td><td class="n">10.100 ± 0.033</td></tr><tr><td>MXFP4 대각 + 4/6 + H</td><td class="n">7.100 ± 0.014</td><td class="n">7.127 ± 0.009</td><td class="n">10.496 ± 0.095</td></tr><tr><td>MXFP4 대각 + 4/6 + H + GPTQ</td><td class="n">7.042 ± 0.005</td><td class="n">7.084 ± 0.020</td><td class="n">10.322 ± 0.025</td></tr></table></div>
+<div class="tw"><table><tr><th>Avg5 (seed 3개)</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th></tr><tr><td>NVFP4 대각 + 4/6</td><td class="n">70.6 ± 0.1</td><td class="n">71.6 ± 0.3</td><td class="n">70.4 ± 0.3</td></tr><tr><td>NVFP4 대각 + 4/6 + GPTQ</td><td class="n">71.4 ± 0.1</td><td class="n">72.0 ± 0.2</td><td class="n">70.7 ± 0.5</td></tr><tr><td>NVFP4 UFP4 + GPTQ</td><td class="n">71.5 ± 0.4</td><td class="n">72.1 ± 0.6</td><td class="n">70.5 ± 0.2</td></tr></table></div>
+<ul>
+<li>SmoothQuant 대비 우위는 seed를 반복해도 확실합니다(Llama 0.07~0.08 = 표준편차의 5배 이상, Qwen3 0.085).</li>
+<li>GPTQ를 더하면 Llama에서는 UFP4 + GPTQ가 0.025~0.03 앞서고(표준편차의 약 3배), Qwen3에서는 대각 + 4/6 + GPTQ가 0.07 앞섭니다. Avg5는 세 모델 모두 동률입니다.</li>
+</ul>
+<h3>4) 베이스라인: "학습"인가 "층별 선택"인가</h3>
+<div class="tw"><table><tr><th>방법 (seed 0, + 4/6)</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th></tr><tr><td>NVFP4 E2M1-4/6 (변환 없음)</td><td class="n">6.786</td><td class="n">6.861</td><td class="n">10.185</td></tr><tr><td>NVFP4 SmoothQuant α=0.5</td><td class="n">6.776</td><td class="n">6.832</td><td class="n">10.191</td></tr><tr><td>NVFP4 SmoothQuant α=0.3</td><td class="n">6.838</td><td class="n">6.885</td><td class="n">10.004</td></tr><tr><td>NVFP4 SmoothQuant α=0.7</td><td class="n">6.841</td><td class="n">6.876</td><td class="n">10.145</td></tr><tr><td>NVFP4 SmoothQuant 형태, 층별 α 탐색</td><td class="n">6.757</td><td class="n">6.804</td><td class="n">10.040</td></tr><tr><td>NVFP4 AWQ 형태, 층별 α 탐색</td><td class="n">6.691</td><td class="n">6.758</td><td class="n">10.110</td></tr><tr><td>NVFP4 LET (shift 없음, 블록 단위)</td><td class="n">6.720</td><td class="n">6.766</td><td class="n">10.101</td></tr><tr><td>NVFP4 LET 원본 (scale + shift, 블록 단위)</td><td class="n">6.802</td><td class="n">6.849</td><td class="n">10.735</td></tr><tr><td>NVFP4 대각 + 4/6 (Linear 단위 학습)</td><td class="n">6.694</td><td class="n">6.760</td><td class="n">10.075</td></tr><tr><td>NVFP4 대각 + 4/6 + H</td><td class="n">6.689</td><td class="n">6.765</td><td class="n">10.209</td></tr><tr><td>MXFP4 E2M1-4/6 (변환 없음)</td><td class="n">7.875</td><td class="n">7.753</td><td class="n">10.998</td></tr><tr><td>MXFP4 SmoothQuant α=0.5</td><td class="n">7.745</td><td class="n">7.712</td><td class="n">10.938</td></tr><tr><td>MXFP4 SmoothQuant 형태, 층별 α 탐색</td><td class="n">7.729</td><td class="n">7.756</td><td class="n">11.053</td></tr><tr><td>MXFP4 AWQ 형태, 층별 α 탐색</td><td class="n">7.482</td><td class="n">7.542</td><td class="n">11.133</td></tr><tr><td>MXFP4 LET (shift 없음, 블록 단위)</td><td class="n">7.670</td><td class="n">7.529</td><td class="n">11.110</td></tr><tr><td>MXFP4 LET 원본 (scale + shift, 블록 단위)</td><td class="n">8.321</td><td class="n">8.131</td><td class="n">12.978</td></tr><tr><td>MXFP4 대각 + 4/6 (Linear 단위 학습)</td><td class="n">7.497</td><td class="n">7.551</td><td class="n">11.179</td></tr><tr><td>MXFP4 대각 + 4/6 + H</td><td class="n">7.117</td><td class="n">7.126</td><td class="n">10.559</td></tr></table></div>
+<ul>
+<li><b>AWQ 형태(s = mean|x|^α)의 층별 α 탐색이 학습한 대각과 사실상 같습니다</b>(Llama 6.691 대 6.694, 6.758 대 6.760; Qwen3 10.11 대 10.08, seed 편차 안). 성능을 만드는 것은 경사하강 학습이 아니라, <b>양자화된 출력 오차를 기준으로 층별 스케일을 고르는 것</b>입니다.</li>
+<li>SmoothQuant 형태의 층별 탐색은 Llama에서 0.05~0.06 나쁩니다. 스케일의 함수 형태도 중요합니다. 전 층 고정 α는 모델마다 최적값이 다릅니다(Llama 0.5, Qwen3 0.3).</li>
+<li>OmniQuant식 블록 단위 LET(shift 없음)는 Linear 단위 목표와 비슷하거나 약간 나쁩니다(Llama 6.72 대 6.69).</li>
+<li><b>shift를 넣은 LET 원본은 Qwen3 NVFP4에서 붕괴하고(10.74), MXFP4에서는 세 모델 모두 크게 나빠집니다.</b></li>
+</ul>
+<h3>5) 형식 인지 STE</h3>
+<div class="tw"><table><tr><th>STE: FP32 스케일 → 평가 형식 그대로</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th></tr><tr><td>NVFP4 대각</td><td class="n">6.780 → 6.818</td><td class="n">6.833 → 6.855</td><td class="n">10.042 → 10.086</td></tr><tr><td>NVFP4 대각 + 4/6</td><td class="n">6.694 → 6.683</td><td class="n">6.760 → 6.740</td><td class="n">10.075 → 9.997</td></tr><tr><td>MXFP4 대각</td><td class="n">8.047 → 8.204</td><td class="n">8.061 → 8.566</td><td class="n">11.896 → 11.896</td></tr><tr><td>MXFP4 대각 + 4/6</td><td class="n">7.497 → 7.707</td><td class="n">7.551 → 7.664</td><td class="n">11.179 → 11.043</td></tr><tr><td>MXFP4 대각 + 4/6 + H</td><td class="n">7.117 → 7.128</td><td class="n">7.126 → 7.180</td><td class="n">10.559 → 10.593</td></tr></table></div>
+<p>실제 평가 형식(E4M3 + 4/6, E8M0)을 그대로 통과하는 STE는 일관된 이득이 없고, MXFP4에서는 오히려 나쁩니다(Llama-3.1 대각 8.06 → 8.57). 2의 거듭제곱 스케일은 계단식이라 STE gradient가 부정확해지는 것으로 보입니다. <b>매끄러운 대리 양자화기(FP32 스케일)로 학습하는 편이 낫습니다.</b> "MXFP4에서 대각 단독이 약한 것은 STE 불일치 때문"이라는 가설은 기각되고, 1)의 클리핑이 원인으로 남습니다.</p>
+<h3>6) shift는 왜 해로운가</h3>
+<div class="tw"><table><tr><th>모델</th><th>첫 토큰 활성값 오차 (shift 전 → 후)</th><th>첫 토큰 블록 absmax</th><th>일반 토큰 활성값 오차</th><th>PPL: shift 전부</th><th>PPL: 첫 토큰만 shift 제외</th><th>PPL: shift 버림 (LET 스케일만)</th></tr><tr><td>Llama-3-8B</td><td class="n">0.0012 → 0.0114</td><td class="n">×8.3</td><td class="n">0.0066 → 0.0068</td><td class="n">6.808</td><td class="n">6.728</td><td class="n">6.692</td></tr><tr><td>Qwen3-8B</td><td class="n">0.0008 → 0.0057</td><td class="n">×8.8</td><td class="n">0.0049 → 0.0053</td><td class="n">10.735</td><td class="n">10.709</td><td class="n">10.163</td></tr></table></div>
+<ul>
+<li>q/k/v와 gate/up 입력은 RMSNorm을 거친 뒤라 거대 활성값 토큰이 없습니다. 일반 토큰에서는 shift 전후 오차가 거의 같습니다(+3~8%).</li>
+<li><b>망가지는 것은 분포가 다른 소수 토큰입니다.</b> shift는 평균적인 토큰에 맞춘 채널별 상수입니다. 그래서 첫 토큰(attention sink)에서는 x − d ≈ −d가 되어 블록 absmax가 8배 이상 커지고 오차가 7~10배 늘어납니다.</li>
+<li><b>인과 확인 (Llama-3)</b>: 첫 토큰만 shift를 빼면 PPL이 6.81 → 6.73으로 회복되고, shift를 버리면 6.69입니다. 손해가 거의 전부 sink 토큰 하나에서 나옵니다.</li>
+<li><b>Qwen3</b>: BOS 토큰이 없고 sink 역할을 하는 토큰이 여러 위치에 있습니다(위치 0, 그리고 여러 층에서 반복되는 '{', ' don' 등). 초기층에서는 크기가 작은 고빈도 토큰(6층의 ' the', 중앙값 노름의 0.4배)도 오차가 10배 커집니다(6층 gate/up 입력에서 토큰의 14%가 3배 이상). 그래서 첫 토큰만 빼도 회복되지 않고(10.71), shift를 버리면 10.16으로 돌아옵니다.</li>
+<li>블록 스케일은 이미 토큰마다 범위를 맞추므로, shift가 일반 토큰에 주는 이득은 거의 없습니다. 반대로 sink 같은 비정형 토큰을 망가뜨립니다. 블록 스케일 FP4에서는 shift를 쓰지 않는 것이 맞습니다.</li>
+</ul>
+<h3>7) OLMo-2처럼 norm이 sublayer 뒤에 있어도 접을 수 있는가</h3>
+<div class="tw"><table><tr><th>OLMo-2-1B (DCLM BPB 증가)</th><th>E2M1</th><th>E2M1-4/6</th><th>접기</th></tr><tr><td>변환 없음</td><td class="n">+3.37%</td><td class="n">+2.95%</td><td class="n">–</td></tr><tr><td>층별 s (양자화 커널 안에서 x/s)</td><td class="n">+2.42%</td><td class="n">+2.09%</td><td class="n">불가</td></tr><tr><td>전역 residual s (함께 학습)</td><td class="n">+2.41%</td><td class="n">+2.22%</td><td class="n">가능</td></tr><tr><td>전역 s = 층별 s의 기하평균</td><td class="n">+2.60%</td><td class="n">+2.09%</td><td class="n">가능</td></tr><tr><td>실제로 접은 모델 + 그냥 양자화</td><td class="n">+2.54%</td><td class="n">+2.26%</td><td class="n">BF16 0.8104 (원래 0.8103)</td></tr></table></div>
+<p>OLMo-2에서는 q/k/v와 gate/up이 정규화되지 않은 residual stream을 읽기 때문에 층별 s를 RMSNorm에 접을 수 없습니다. 대신 <b>residual stream 전체에 공유 s 하나</b>를 적용하는 방식은 접을 수 있습니다. embedding과 모든 post-norm weight에 1/s를 넣고, q/k/v와 gate/up 열에 s를 곱하며, 최종 norm 앞에 곱셈 하나만 남습니다. 이 방식이 층별 s와 같은 정확도를 냅니다(+2.41% 대 +2.42%, 4/6 사용 시 기하평균 s가 +2.09%로 동일). 실제로 접은 모델의 BF16 BPB는 원래와 같았고, 접은 weight를 BF16으로 반올림하면서 약 0.1%p 손해가 생겼습니다.</p>
+<h3>8) 접을 수 없을 때의 비용</h3>
+<div class="tw"><table><tr><th>활성값 양자화 커널 (μs, RTX PRO 6000)</th><th>NVFP4 양자화만</th><th>+ 채널별 x/s</th><th>+ 16×16 Hadamard</th></tr><tr><td>K=4096, M=1</td><td class="n">40</td><td class="n">41 (+1.6%)</td><td class="n">49 (+21.9%)</td></tr><tr><td>K=4096, M=128</td><td class="n">39</td><td class="n">40 (+2.0%)</td><td class="n">52 (+34.4%)</td></tr><tr><td>K=4096, M=2048</td><td class="n">59</td><td class="n">63 (+6.4%)</td><td class="n">78 (+32.8%)</td></tr><tr><td>K=4096, M=8192</td><td class="n">438</td><td class="n">438 (-0.0%)</td><td class="n">558 (+27.4%)</td></tr><tr><td>K=14336, M=1</td><td class="n">40</td><td class="n">42 (+6.2%)</td><td class="n">49 (+24.1%)</td></tr><tr><td>K=14336, M=128</td><td class="n">41</td><td class="n">40 (-3.6%)</td><td class="n">50 (+19.8%)</td></tr><tr><td>K=14336, M=2048</td><td class="n">376</td><td class="n">377 (+0.2%)</td><td class="n">475 (+26.3%)</td></tr><tr><td>K=14336, M=8192</td><td class="n">1635</td><td class="n">1624 (-0.7%)</td><td class="n">1991 (+21.8%)</td></tr></table></div>
+<p>측정은 RTX PRO 6000(asri139, GPU를 단독으로 사용)에서 했습니다. 활성값 양자화 커널에 채널별 x/s 곱셈을 넣는 비용은 측정 잡음 수준(−4~+6%)입니다. 블록 Hadamard는 같은 커널을 20~34% 느리게 합니다. 따라서 접기가 불가능한 구조에서도 채널 스케일의 비용은 사실상 0입니다. 앞서 snu233에서 잰 값은 다른 사용자의 작업과 GPU를 공유한 상태라 폐기했습니다.</p>
+<h3>9) FP4 학습에서는 (M7)</h3>
+<div class="tw"><table><tr><th>Stage 1 (66M, seed 3개, E2M1-4/6 + dY SR)</th><th>BF16 대비 val loss Δ</th><th>같은 seed 오라클 대비</th><th>s/step</th></tr><tr><td>UFP4 (균일 + RHT)</td><td class="n">+0.0435 ± 0.0062</td><td class="n">−0.0013 ± 0.0005</td><td class="n">3.20</td></tr><tr><td>smoothing, 오라클 통계 (같은 배치)</td><td class="n">+0.0448 ± 0.0059</td><td class="n">–</td><td class="n">4.09</td></tr><tr><td>smoothing, 지연 통계 (이전 step)</td><td class="n">+0.0466 ± 0.0065</td><td class="n">+0.0018 ± 0.0065</td><td class="n">4.12</td></tr><tr><td>smoothing, 온라인 학습 s</td><td class="n">+0.0449 ± 0.0085</td><td class="n">+0.0002 ± 0.0080</td><td class="n">6.04</td></tr></table></div>
+<ul>
+<li><b>실제 커널에서 구현 가능한 지연 통계(이전 step의 채널 absmax)로 바꿔도 결과가 유지되고</b>(+0.0018 ± 0.0065, 잡음 범위) 추가 비용도 없습니다.</li>
+<li><b>학습 중 s를 학습해도 이득이 없습니다.</b> GEMM 단위로 보면 학습한 s가 공식보다 4% 나쁘고, 시간은 48% 더 듭니다.</li>
+<li>UFP4는 모든 seed에서 미세하게 앞섭니다(같은 seed 대비 −0.0013 ± 0.0005). 정확한 표현은 "UFP4와 0.001~0.002 이내"입니다.</li>
+<li>WGRAD는 축소 축이 토큰이라, 지연·학습 s가 채널이 아니라 토큰 위치에 붙는다는 한계가 있습니다.</li>
+</ul>
+<h3>정리: 데이터가 지지하는 주장</h3>
+<ol>
+<li>블록 스케일 E2M1(E4M3 스케일)에서는 회전 대신 <b>채널 스케일</b>을 써야 합니다. 스케일은 텐서 MSE가 아니라 <b>양자화된 GEMM 출력 오차</b>를 기준으로 층별로 골라야 합니다. 경사하강 학습과 매개변수 1개 탐색(AWQ 형태)의 결과가 같으므로, 핵심은 "학습"이 아니라 "출력 오차 기준의 층별 선택"입니다.</li>
+<li>shift는 attention sink 같은 비정형 토큰을 망가뜨리므로 쓰지 않습니다.</li>
+<li>스케일 형식이 E8M0(MXFP4)이면 클리핑이 지배적이라 회전이 다시 필요하고, 채널 스케일과 함께 씁니다.</li>
+<li>접기는 pre-norm(Llama, Qwen)에서 그대로 되고, post-norm(OLMo-2)에서도 전역 residual 스케일로 됩니다. 접지 못하더라도 비용은 측정 잡음 수준입니다.</li>
+<li>FP4 학습에서는 지연 통계 SmoothQuant 공식으로 충분합니다. s를 학습할 필요가 없고, 결과는 UFP4와 0.002 이내입니다.</li>
+</ol>
+
+<h2 id="r23">㉓ 레벨 배치: ΔFP(Ordentlich &amp; Polyanskiy)와 분리하기 <span class="note">(2026-10-28)</span></h2>
+<p>survey(arXiv 2608.25188)는 "FP에서 회전이 손해"인 이유를 Ordentlich &amp; Polyanskiy(2601.17187)의 ΔFP, 즉 weight와 activation이 서로 다른 채널에 에너지를 두는 정도(anti-alignment)로 설명합니다. 이 설명은 지수 범위가 무한하고 오차가 값에 비례하는(IEIN) FP8 모델에서 유도된 것이라, G=16 E2M1에 그대로 맞는지 직접 분해했습니다(<code>dfp_test.py</code> → <code>hf/dfp_tables.md</code>).</p>
+<ul>
+<li><b>레벨 배치란?</b> NVFP4는 블록 최댓값을 6에 맞추므로 최댓값은 오차가 0입니다. 회전 전에는 이 최댓값이 블록 에너지의 47~59%를 갖고, 나머지 값은 E2M1이 촘촘한 0 근처에 있습니다. Hadamard는 outlier를 16칸에 같은 크기로 복사하므로 최댓값 비중이 23%로 줄고, 에너지의 절반이 [4,6), 즉 E2M1에서 가장 성긴 구간(간격 2)으로 옮겨갑니다(그림 23). 블록 평균 t² = 1/crest² 이므로, crest를 낮추는 변환은 반드시 값을 위쪽으로 올립니다.</li>
+<li><b>정확한 분해:</b> GEMM 오차 ≈ Σ<sub>k</sub>(e<sup>A</sup><sub>k</sub>b<sub>k</sub> + a<sub>k</sub>e<sup>B</sup><sub>k</sub>) = S·ν·c. S는 ΔFP 항, ν는 단일 operand 텐서 오차(레벨 배치 항), c는 공분산 항입니다. 실제 GEMM 오차와 0.1 dB 안에서 일치합니다.</li>
+</ul>
+<figure><img src="data:image/png;base64,{{fig23}}" alt="level placement"><figcaption>그림 23. 300M WGRAD dYᵀ의 블록 정규화 크기 분포(에너지 가중). 위 점은 E2M1, 균일, MSE 최적 레벨입니다.</figcaption></figure>
+<figure><img src="data:image/png;base64,{{fig25}}" alt="rotation gain"><figcaption>그림 25 (method comparison 그림 2). 회전의 실제 효과. (a) FPROP GEMM 양자화 오차 변화(dB, +는 회전이 도움), 포맷 × 블록 크기. (b) 8B W4A4 RTN에서 회전으로 인한 ppl 변화(%, +는 회전이 도움): NVFP4에서는 4~8% 나빠지고 MXFP4에서는 3~7% 좋아집니다.</figcaption></figure>
+<figure><img src="data:image/png;base64,{{fig24}}" alt="dfp decomposition"><figcaption>그림 24. FPROP 회전 효과(dB, +는 Hadamard가 도움)를 ΔFP / 레벨 배치 / 공분산으로 분해. Qwen2.5-0.5B, OLMo-2-1B, Qwen3-1.7B 평균.</figcaption></figure>
+<div class="tw"><table><tr><th>FPROP, 3개 모델 평균 (dB)</th><th>G=16 전체</th><th>ΔFP 항</th><th>배치 항</th><th>G=32 전체</th><th>G=128 전체</th></tr><tr><td>E2M1 (FP32 스케일)</td><td class="n">−1.08</td><td class="n">−0.86</td><td class="n">−0.61</td><td class="n">−0.27</td><td class="n">+1.91</td></tr><tr><td>E2M1 (E8M0, MX)</td><td class="n">+0.74</td><td class="n">−0.86</td><td class="n">+0.88</td><td class="n">+1.23</td><td class="n">+2.81</td></tr><tr><td>INT4 (균일)</td><td class="n">+2.03</td><td class="n">−0.86</td><td class="n">+2.03</td><td class="n">+2.78</td><td class="n">+4.61</td></tr><tr><td>FP8 E4M3</td><td class="n">−2.26</td><td class="n">−0.86</td><td class="n">−1.39</td><td class="n">−2.14</td><td class="n">−1.86</td></tr></table></div>
+<ul>
+<li><b>ΔFP도 작지 않습니다</b>(−0.9 dB). 원래 operand는 실제로 anti-align되어 있습니다(평균 ΔFP 0.74~0.95).</li>
+<li><b>하지만 포맷·블록 크기·스케일 형식에 따른 차이는 전부 배치 항에서 나옵니다.</b> ΔFP 항은 모든 포맷과 G에서 −0.86 ~ −0.90으로 같습니다. E2M1의 crossover(G=16 손해 → G=128 이득)도 배치 항이 만듭니다.</li>
+<li><b>outlier 블록이 손해를 만듭니다.</b> 상위 1% 채널이 든 블록(전체의 14%)에만 Hadamard를 걸어도, 전체 회전 손해의 68~89%가 이미 생깁니다.</li>
+<li>예외: OLMo-2 WGRAD는 토큰 축 anti-alignment가 강해 ΔFP 항(−4.7 dB)이 지배적입니다.</li>
+</ul>
+<h2 id="r24">㉔ 회전 대신 무엇을 쓸까: 회전 후 재스케일, OCS, SQ, QDS</h2>
+<p>회전 없는 E2M1(absmax→6) 대비 FPROP GEMM SQNR 변화(dB, <code>placement_test.py</code> → <code>hf/place_tables.md</code>, <code>moe/place_tables.md</code>). QDS의 α와 OCS 채널은 평가 배치에서 골랐습니다(oracle).</p>
+<div class="tw"><table><tr><th>방법</th><th>Qwen2.5-0.5B</th><th>OLMo-2-1B</th><th>Qwen3-1.7B</th><th>OLMoE expert</th><th>OLMoE attn</th></tr><tr><td>H16</td><td class="n">−0.98</td><td class="n">−0.84</td><td class="n">−1.30</td><td class="n">−0.43</td><td class="n">−0.62</td></tr><tr><td>H16 후 absmax→4</td><td class="n">−0.82</td><td class="n">−0.71</td><td class="n">−1.09</td><td class="n"></td><td class="n"></td></tr><tr><td>4/6</td><td class="n">+0.41</td><td class="n">+0.53</td><td class="n">+0.35</td><td class="n">+0.63</td><td class="n">+0.56</td></tr><tr><td>블록별 최적 스케일</td><td class="n">+0.69</td><td class="n">+0.84</td><td class="n">+0.66</td><td class="n">+1.00</td><td class="n">+0.88</td></tr><tr><td>OCS</td><td class="n">+0.65</td><td class="n">+0.54</td><td class="n">+0.82</td><td class="n">+0.20</td><td class="n">+0.33</td></tr><tr><td>OCS + 4/6</td><td class="n">+1.16</td><td class="n">+1.17</td><td class="n">+1.29</td><td class="n">+0.86</td><td class="n">+0.99</td></tr><tr><td>OCS + 최적 스케일</td><td class="n">+1.49</td><td class="n">+1.54</td><td class="n">+1.64</td><td class="n"><b>+1.24</b></td><td class="n">+1.39</td></tr><tr><td>SQ + 4/6</td><td class="n">+1.97</td><td class="n">+1.21</td><td class="n">+2.36</td><td class="n">+0.73</td><td class="n">+1.54</td></tr><tr><td>QDS</td><td class="n">+1.51</td><td class="n">+0.80</td><td class="n">+1.87</td><td class="n">+0.22</td><td class="n">+0.92</td></tr><tr><td><b>QDS + 4/6</b></td><td class="n"><b>+2.17</b></td><td class="n"><b>+1.42</b></td><td class="n"><b>+2.52</b></td><td class="n">+0.84</td><td class="n"><b>+1.65</b></td></tr><tr><td>OCS + QDS + 4/6</td><td class="n">+2.05</td><td class="n">+1.31</td><td class="n">+2.34</td><td class="n">+0.85</td><td class="n">+1.37</td></tr><tr><td>UFP4</td><td class="n">+0.83</td><td class="n">+0.85</td><td class="n">+0.62</td><td class="n">+0.90</td><td class="n">+0.86</td></tr></table></div>
+<ul>
+<li><b>회전 후 스케일만 바꿔서는 회복되지 않습니다.</b> 회전 뒤 블록은 평평해서, 큰 스케일은 상위 레벨을 낭비하고 작은 스케일은 클리핑합니다.</li>
+<li><b>섞지 않고 outlier를 옮기면 됩니다.</b> QDS(채널 스케일, 접기로 비용 0)가 주 방법이고, dense에서는 QDS + 4/6이 UFP4보다 0.6~1.9 dB 높습니다. QDS 위에 OCS를 더하면 이득이 없습니다.</li>
+<li><b>OCS는 보완책입니다.</b> 채널 outlier가 약한 MoE expert에서는 QDS의 이득이 작고(+0.22), OCS + 최적 스케일이 가장 좋습니다. 비용은 reduction 축 +1%입니다.</li>
+<li>DGRAD/WGRAD도 같은 경향이고, WGRAD에서는 QDS + 4/6(+2.4~+4.2 dB)과 UFP4(−0.7~+0.9)의 차이가 가장 큽니다.</li>
+</ul>
+<h3>4/6은 어떻게 효과를 내나: 상위 구간을 직접 고친다</h3>
+<p><code>scale46_test.py</code> → <code>hf/s46_tables.md</code> (Qwen2.5-0.5B, OLMo-2-1B, Qwen3-1.7B 전체 Linear, GEMM 3종 × {회전 없음, H16})</p>
+<div class="tw"><table><tr><th>FPROP activation, 3개 모델 평균</th><th>회전 없음</th><th>H16</th></tr><tr><td>4를 고르는 블록 비율</td><td class="n">33%</td><td class="n">49%</td></tr><tr><td>근최댓값(t≥4) 개수: 4를 고른 블록 / 6 유지</td><td class="n">3.4 / 1.9</td><td class="n">4.5 / 2.8</td></tr><tr><td>오차 중 [4,6) 비중: @6 → 4/6</td><td class="n">25% → 14%</td><td class="n">68% → 47%</td></tr><tr><td>[4,6) 원소의 오차 감소</td><td class="n">46%</td><td class="n">48%</td></tr><tr><td>GEMM SQNR 이득 (4/6)</td><td class="n">+0.43 dB</td><td class="n">+1.05 dB</td></tr><tr><td>UFP4와의 격차: @6 → 4/6</td><td class="n">−0.77 → −0.33</td><td class="n">−1.80 → −0.75</td></tr></table></div>
+<ul><li>4를 고르는 블록은 근최댓값이 많은 블록이고, [4,6) 원소의 오차가 약 46% 줄어듭니다. 4/6은 상위 구간 문제를 정확히 겨냥합니다.</li>
+<li>회전 후에 4/6의 효과가 더 큽니다. 회전이 근최댓값 블록을 만들어내기 때문입니다. 그래도 회전 손해를 다 되돌리지는 못해서, 4/6 위에 H16을 더하면 약 0.4 dB 손해입니다.</li>
+<li>weight와 DGRAD/WGRAD도 같은 패턴입니다(4를 고르는 블록 26~53%, [4,6) 오차 감소 42~49%). method comparison 표에 반영했습니다.</li></ul>
+<h2 id="r25">㉕ QDS(Quantization-aware Diagonal Scaling)의 정의와 4/6과의 직교성</h2>
+<p><b>정의:</b> 같은 입력을 쓰는 Linear 묶음마다 양수 벡터 s를 두고, FP4로 양자화한 GEMM 출력 오차 Σ‖Q(X/s)Q(Ws)ᵀ − XWᵀ‖²/‖XWᵀ‖²를 최소화합니다. s = exp(v), s=1에서 시작하고 STE로 학습합니다(α 탐색도 같은 결과: 6.691 vs 6.694). 묶음은 {q,k,v}, {gate,up}, o, down이며, RMSNorm·v_proj·up_proj에 접어 넣어 추론 비용이 0입니다. shift는 쓰지 않습니다. 4/6(Cook et al.)은 기존 방법으로, QDS와 결합할 수 있습니다.</p>
+<div class="tw"><table><tr><th>NVFP4 W4A4 RTN, wikitext ppl</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th><th>OLMoE-1B-7B</th></tr><tr><td>E2M1</td><td class="n">6.887</td><td class="n">6.946</td><td class="n">10.100</td><td class="n">7.235</td></tr><tr><td>+ 4/6</td><td class="n">6.786 (−.101)</td><td class="n">6.861 (−.085)</td><td class="n">10.185 (+.085)</td><td class="n">7.163 (−.072)</td></tr><tr><td>+ QDS</td><td class="n">6.780 (−.107)</td><td class="n">6.833 (−.113)</td><td class="n"><b>10.042</b> (−.058)</td><td class="n">7.255 (+.020)</td></tr><tr><td>+ QDS + 4/6</td><td class="n"><b>6.694</b> (−.193)</td><td class="n"><b>6.760</b> (−.186)</td><td class="n">10.075 (−.025)</td><td class="n">7.148 (−.087)</td></tr></table></div>
+<ul>
+<li>dense 8B에서 QDS는 4/6 유무와 무관하게 도움이 되고(−0.06 ~ −0.11), Llama에서는 두 효과가 거의 정확히 더해집니다.</li>
+<li>4/6의 효과는 모델에 따라 다릅니다(Qwen3에서는 end-to-end 손해).</li>
+<li>OLMoE에서는 QDS 효과가 없습니다. expert 입력에 채널 outlier가 없어서 QDS가 옮길 에너지가 없습니다.</li>
+<li>FP4 학습에서는 smoothing 단독은 효과가 없고(+0.056 vs +0.053), 4/6과 함께일 때만 좋아집니다.</li>
+</ul>
+<h2 id="r26">㉖ 8B PTQ에 WUSH(ICML 2026) 추가</h2>
+<p>공식 코드(IST-DASLab/WUSH)를 MR-GPTQ와 같은 보정 데이터(fineweb-edu 128×2048, seed 42)와 같은 평가로 실행했습니다(<code>ptq8b/wush/wush_run.py</code>, info107). A5000에는 FP4 연산 유닛이 없어 WUSH의 torch 참조 backend를 썼습니다.</p>
+<div class="tw"><table><tr><th>NVFP4, ppl / Avg5</th><th>Llama-3-8B</th><th>Llama-3.1-8B</th><th>Qwen3-8B</th></tr><tr><td>WUSH RTN</td><td class="n">6.780 / 70.50</td><td class="n">6.857 / 71.52</td><td class="n">10.370 / 70.39</td></tr><tr><td>QDS-4/6 RTN</td><td class="n"><b>6.694</b> / 70.72</td><td class="n"><b>6.760</b> / 71.39</td><td class="n"><b>10.075</b> / 70.37</td></tr><tr><td>WUSH GPTQ</td><td class="n">6.773 / 71.41</td><td class="n">6.840 / 71.67</td><td class="n">10.139 / 70.07</td></tr><tr><td>MR-GPTQ</td><td class="n">6.871 / 71.35</td><td class="n">6.892 / 71.82</td><td class="n">10.235 / 69.91</td></tr><tr><td>QDS-4/6 GPTQ</td><td class="n"><b>6.659</b> / 71.29</td><td class="n"><b>6.736</b> / 72.26</td><td class="n"><b>10.015</b> / 70.24</td></tr></table></div>
+<p>WUSH는 MR-GPTQ보다 좋지만, RTN과 GPTQ 모두에서 QDS-4/6보다 ppl이 높습니다. Avg5 차이는 1점 이내로 잡음 수준입니다. MXFP4 GPTQ에서도 WUSH 7.10 / 7.13 / 10.43, QDS-4/6+H 7.04 / 7.08 / 10.31입니다.</p>
+<h3>회전을 진짜 RHT(무작위 부호)로 다시 돌린 결과</h3>
+<p>이전 8B PTQ의 회전은 무작위 부호 없는 고정 블록 Hadamard였습니다. <code>ptq8b/ptq8b_v3.py --rht</code>(K마다 seed 고정 부호, 양자화·QDS 학습·GPTQ 경로 모두 적용)로 12개를 다시 돌렸습니다(info107, info103). 기준은 E2M1 6.887 / 6.946 / 10.100, QDS-4/6 6.694 / 6.760 / 10.075입니다.</p>
+<div class="tw"><table><tr><th>NVFP4 (L3 / L3.1 / Q3)</th><th>고정 블록 Hadamard ppl</th><th>RHT16 ppl</th><th>RHT16 Avg5</th></tr><tr><td>E2M1 + 회전, RTN</td><td class="n">7.206 / 7.148 / 10.555</td><td class="n"><b>7.185 / 7.195 / 10.880</b></td><td class="n">69.23 / 70.39 / 67.94</td></tr><tr><td>E2M1 + 회전 + GPTQ</td><td class="n">6.874 / 6.895 / 10.303</td><td class="n">6.880 / 6.893 / 10.324</td><td class="n">70.36 / 71.85 / 70.30</td></tr><tr><td>UFP4, RTN</td><td class="n">6.872 / 6.920 / 10.718</td><td class="n">6.896 / 6.941 / 10.473</td><td class="n">70.29 / 71.84 / 69.41</td></tr><tr><td>QDS-4/6 + 회전, RTN</td><td class="n">6.689 / 6.765 / 10.209</td><td class="n">6.703 / 6.779 / 10.117</td><td class="n">71.39 / 71.74 / 70.04</td></tr></table></div>
+<p>결론은 같습니다. RHT를 써도 회전 RTN은 세 모델 모두 회전 없는 E2M1보다 나쁘고, QDS-4/6 위에 RHT를 더해도 이득이 없습니다. 부호를 넣을지는 최대 0.3 ppl 차이를 만들지만 순위는 바뀌지 않습니다. method comparison 표의 회전 행은 RHT16 값으로 바꿨습니다.</p>
+<h2 id="r27">㉗ MoE: OLMoE-1B-7B (64 expert 중 8개 활성)</h2>
+<p>transformers 5의 MoE expert는 3D 가중치라서, 별도 캡처(<code>moe_tap.py</code>)와 PTQ 스크립트(<code>moe_ptq.py</code>)를 만들었습니다. 라우터는 BF16이고, QDS의 expert 입력 스케일은 64개 expert와 라우터 가중치에 함께 곱해 라우팅이 정확히 보존됩니다.</p>
+<ul>
+<li><b>텐서 분해:</b> expert의 ΔFP는 0.986 → 0.999로 거의 1이라 ΔFP 항이 −0.07 dB인데도, H16은 expert FPROP을 −0.43 dB 나쁘게 합니다. 손해 전부가 배치 항에서 나옵니다. survey의 설명으로는 설명되지 않는 사례입니다.</li>
+</ul>
+<div class="tw"><table><tr><th>OLMoE, NVFP4 W4A4 RTN</th><th>wikitext ppl</th><th>Avg5</th></tr><tr><td>BF16</td><td class="n">6.652</td><td class="n">70.49</td></tr><tr><td>E2M1</td><td class="n">7.235</td><td class="n">68.90</td></tr><tr><td>E2M1 + H16 (고정) / + RHT16</td><td class="n">7.400 / 7.382</td><td class="n">67.68 / 68.61</td></tr><tr><td>UFP4 (H16 / RHT16)</td><td class="n">7.236 / 7.216</td><td class="n">69.59 / 68.14</td></tr><tr><td>E2M1-4/6</td><td class="n">7.163</td><td class="n">68.71</td></tr><tr><td>SQ-4/6</td><td class="n">7.147</td><td class="n">–</td></tr><tr><td>QDS</td><td class="n">7.255</td><td class="n">68.49</td></tr><tr><td>QDS-4/6</td><td class="n">7.148</td><td class="n">69.45</td></tr><tr><td>QDS-4/6 + RHT16</td><td class="n">7.168</td><td class="n">68.07</td></tr><tr><td><b>OCS-4/6</b></td><td class="n"><b>7.130</b></td><td class="n">68.96</td></tr><tr><td>QDS-4/6 + expert OCS</td><td class="n">7.159</td><td class="n">–</td></tr></table></div>
+<p>회전은 무작위 부호를 넣어도 ppl과 Avg5 모두에서 가장 나쁘고(H16 67.68, QDS-4/6에 RHT16을 더하면 69.45 → 68.07), UFP4의 ppl은 E2M1과 같습니다. Avg5는 무작위 부호만 바꿔도 1.5점까지 움직여서(UFP4 69.59 ↔ 68.14), 1 seed로는 스케일 계열 방법들의 순위를 가리지 못합니다. 순위는 ppl을 기준으로 봅니다.</p>
+<h2 id="r28">㉘ FP4 학습에서 RHT의 위치 (NVIDIA NVFP4 레시피)</h2>
+<div class="tw"><table><tr><th>66M, 393M 토큰, E2M1, dY SR</th><th>seed별 Δ val loss</th><th>평균</th></tr><tr><td>RHT 없음</td><td class="n">.0528 / .0443 / .0450</td><td class="n">+0.047 ± 0.005</td></tr><tr><td>RHT를 WGRAD 입력에만 (NVIDIA)</td><td class="n">.0535 / .0417 / .0477</td><td class="n">+0.048 ± 0.006</td></tr><tr><td>RHT를 모든 GEMM에</td><td class="n">.0644 / 실행 중 / .0615</td><td class="n">+0.063 (2 seed)</td></tr><tr><td>E2M1-4/6 + smoothing (직전 step 통계)</td><td class="n">.0539 / .0412 / .0446</td><td class="n">+0.047 ± 0.007</td></tr><tr><td><b>위 + RHT를 WGRAD에만</b></td><td class="n">.0468 / .0378 / 실행 중</td><td class="n"><b>+0.042 (2 seed)</b></td></tr><tr><td>UFP4</td><td class="n">.0445 / .0368 / .0491</td><td class="n">+0.044 ± 0.006</td></tr></table></div>
+<ul>
+<li><b>plain E2M1에서 WGRAD RHT는 효과가 없습니다.</b> 같은 seed끼리 비교하면 +0.0003 ± 0.0027(3 seed)입니다. 모든 GEMM에 걸면 +0.014(2 seed) 손해입니다.</li>
+<li><b>smoothing + 4/6 위에서는 WGRAD RHT가 약간 도움이 될 수 있습니다.</b> 같은 seed끼리 −0.0071, −0.0034로 2 seed 모두 좋아졌습니다. seed 2를 실행 중이라 아직 결론은 내리지 않습니다. 확인되면 학습 권장안이 "scaling + WGRAD RHT"로 바뀔 수 있습니다.</li>
+</ul>
+<h2 id="r29">㉙ 관련 문헌 정리</h2>
+<p>문헌 노트는 <code>literature/</code>(목차 <code>literature/README.md</code>)에 있습니다.</p>
+<ul>
+<li><b>Jokar 2026 survey</b>: NVFP4에는 "회전을 거의 쓰지 말라"고 이미 권장합니다. 근거는 ΔFP(anti-alignment)인데, 자기 측정(G=128)에서는 E2M1도 회전으로 좋아졌습니다. 우리의 crossover와 일치합니다.</li>
+<li><b>Ordentlich &amp; Polyanskiy 2026</b>: ΔFP는 FP8, 벡터 전체 스케일, 상대오차 모델에서 유도됐고, NVFP4 G=16에서 회전 유무를 비교하지 않았습니다.</li>
+<li><b>Liu et al. 2025 (종합 평가)</b>: NVFP4에서 rotation은 scaling 대비 이득이 없다고 보고하고, 그룹이 작아서라고 설명합니다. 그러나 같은 G=16에서 INT4는 회전으로 약 2 dB 좋아지므로, 그룹 크기만으로는 설명되지 않습니다.</li>
+<li><b>Federici et al. 2026 (CAT)</b>: 균일 INT4에서 SmoothQuant가 weight concentration을 망친다고 비판합니다. 그러나 NVFP4에서는 weight outlier 채널이 블록 최댓값이 되어 정확히 표현되므로, SmoothQuant-4/6이 E2M1보다 좋습니다. CAT 자체는 블록 안을 섞는 변환입니다.</li>
+<li><b>Four Over Six (Cook et al.)</b>: "블록 최댓값 바로 아래(스케일 후 약 5) 값이 NVFP4 오차의 주된 원인"이라고 이미 지적했습니다. 레벨 배치의 <b>정적인</b> 측면입니다. 하지만 회전과 연결하지 않았고, 학습 레시피에서는 WGRAD RHT를 그대로 씁니다. 우리가 더하는 것은 세 가지입니다. ① 회전이 이런 근최댓값 에너지를 <b>만들어낸다</b>([4,6) 비중 12~18% → 45~50%). ② 그 효과가 포맷·블록 크기·스케일 형식에 따라 뒤집힌다. ③ 채널 단위 처방(QDS)이 4/6과 직교한다.</li>
+<li><b>ScaleSweep, SOAR, FOCUS</b>: 블록 스케일 최적화 계열로, 블록에 작용하므로 채널에 작용하는 QDS와 직교합니다.</li>
+<li><b>ARCQuant, OCS</b>: 섞는 대신 채널을 추가하는 방식이고, OLMoE에서는 OCS-4/6이 최선이었습니다.</li>
+<li><b>WUSH, MR-GPTQ, UFP4, NVIDIA 레시피</b>: 블록 안을 섞는 쪽입니다. 우리 8B PTQ에서 QDS-4/6이 모두보다 ppl이 낮습니다(UFP4+GPTQ는 Llama에서 0.03 앞섬).</li>
+</ul>
+<p><b>진행 중(아직 이 보고서에 반영되지 않음):</b> 학습 2개 run(smoothing+4/6+WGRAD RHT seed 2, RHT 전체 적용 seed 1).</p>
+
+<h2 id="r32">㉜ method comparison의 방향과 권장 사항 (2026-10-30, PTQ 중심으로 재구성)</h2>
+<p><b>방향 (A안):</b> 분석이 중심인 method comparison입니다. 주된 기여는 “왜 회전이 NVFP4에서 손해인가”이고, QDS는 그 분석에서 나오는 네이티브 해법이지만 이득이 작다는 점(튜닝한 SmoothQuant-4/6 대비 ppl 0.07–0.12)을 그대로 적습니다. 본문은 W4A4 PTQ의 forward GEMM(Y=XWᵀ) 하나만 다루고, DGRAD/WGRAD와 FP4 pre-training은 보조 결과로 둡니다.</p>
+<h3>권장 사항</h3>
+<ul>
+<li><b>NVFP4 W4A4 PTQ: 회전하지 않습니다.</b> 블록 스케일 선택(4/6)을 쓰고, 그 위에 QDS(앞 weight에 접어 넣어 비용 0)를 더합니다. QDS의 추가 이득은 작습니다.</li>
+<li><b>QDS가 할 일이 있는지 확인합니다.</b> activation 상위 1% 채널의 에너지 비중이 낮은 곳(MoE expert)에서는 QDS를 생략해도 됩니다.</li>
+<li><b>MXFP4 (E8M0 스케일): 블록 안 회전과 QDS를 함께 씁니다.</b></li>
+<li><b>FP4 학습:</b> 동적 대각 스케일 + 4/6이 UFP4와 동급입니다. WGRAD RHT의 효과는 검증 중입니다(㉘).</li>
+</ul>
+
+<h2 id="r33">㉝ 왜 분석 다음이 스케일 변환인가: 분해의 세 항과 처방의 대응 <span class="note">(2026-10-30)</span></h2>
+<p><code>scale_mech.py</code> → <code>hf/mech_tables.md</code>. FPROP, Qwen2.5-0.5B / OLMo-2-1B / Qwen3-1.7B 디코더 Linear 전체(476개)의 평균입니다.</p>
+<p><b>논리:</b> GEMM 오차 ≈ Σ<sub>k</sub> w<sub>k</sub>(r<sup>A</sup><sub>k</sub> + r<sup>B</sup><sub>k</sub>)로 쓸 수 있습니다. 채널 가중치는 w<sub>k</sub> = a<sub>k</sub>b<sub>k</sub>, 채널별 상대 오차는 r<sup>A</sup><sub>k</sub> = e<sup>A</sup><sub>k</sub>/a<sub>k</sub>이고, 오차 = S·ν·c로 분해됩니다.</p>
+<ul>
+<li><b>S = Σw<sub>k</sub> (ΔFP 항)</b>: 채널을 섞는 변환이 바꿉니다. Hadamard는 S를 키웁니다.</li>
+<li><b>ν (placement)</b>: 블록 값이 E2M1 레벨 어디에 떨어지는지로 정해집니다. 블록 스케일 규칙(4/6)이 조절합니다.</li>
+<li><b>c (정렬)</b>: w<sub>k</sub>가 큰 채널이 작은 상대 오차를 받는지를 봅니다. absmax 스케일은 블록 최댓값을 정확히 표현하므로, c는 "블록마다 어느 채널이 최댓값인가"에 달려 있습니다.</li>
+<li>placement 분석은 블록 안 섞기를 금지합니다. 섞지 않는 함수 보존 선형 변환은 (치환을 제외하면) 대각 스케일뿐입니다. 대각 스케일은 a<sub>k</sub>→a<sub>k</sub>/s<sub>k</sub>², b<sub>k</sub>→s<sub>k</sub>²b<sub>k</sub>이므로 w<sub>k</sub>와 S가 <b>정확히 불변</b>입니다. 따라서 남는 처방은 ν용 블록 스케일 규칙과 c용 대각 스케일 두 가지입니다.</li>
+</ul>
+<div class="tw"><table><tr><th>plain E2M1 대비 이득 (dB)</th><th>GEMM</th><th>S</th><th>ν</th><th>c</th></tr>
+<tr><td>H16</td><td class="n">−1.08</td><td class="n">−0.86</td><td class="n">−0.61</td><td class="n">+0.39</td></tr>
+<tr><td>4/6</td><td class="n">+0.41</td><td class="n">0</td><td class="n">+0.57</td><td class="n">−0.15</td></tr>
+<tr><td>SmoothQuant (α=0.5)</td><td class="n">+1.33</td><td class="n">0</td><td class="n">−0.08</td><td class="n">+1.40</td></tr>
+<tr><td>QDS (α 탐색)</td><td class="n">+1.49</td><td class="n">0</td><td class="n">−0.10</td><td class="n">+1.57</td></tr>
+<tr><td>QDS-4/6</td><td class="n">+2.14</td><td class="n">0</td><td class="n">+0.54</td><td class="n">+1.59</td></tr></table></div>
+<ul>
+<li>예측대로 4/6은 ν에서만, QDS는 c에서만 이득을 냅니다(S는 정확히 0, ν 변화는 0.13 dB 이내). QDS-4/6에서는 두 이득이 그대로 더해집니다. 이것이 "QDS와 4/6은 직교한다"의 근거입니다.</li>
+<li>H16은 S와 ν에서 잃는 만큼을 c에서 되찾지 못합니다. H16 행은 method comparison 분해 표의 NVFP4 G=16 행(−1.08 / −0.86 / −0.61 / +0.39)과 일치합니다.</li>
+<li><b>c 이득의 출처</b>: 스케일이 없을 때, top-1% activation 채널과 같은 블록에 있는 이웃 채널(전체 채널의 15% 이하)이 activation 쪽 오차의 35~42%를 냅니다. 0으로 반올림되는 값(dead-zone)은 19~29%를 냅니다. outlier는 블록 최댓값이라 정확히 표현되지만, 이웃 채널을 가장 낮은 레벨로 밀어냅니다. QDS를 쓰면 이 비중이 16~18%와 7~9%로 줄어듭니다.</li>
+<li>이 분해 논리와 표(levers)를 method comparison의 Fixes 부분에 넣었습니다.</li>
+</ul>
+
+<h2 id="concl">결론과 한계</h2>
+<h3>2026-10-28 업데이트 (㉓~㉙)</h3>
+<ul>
+<li><b>회전이 NVFP4를 해치는 메커니즘은 레벨 배치입니다.</b> ΔFP는 포맷과 무관한 일정한 손해이고, 회전 득실이 포맷·블록 크기·스케일 형식에 따라 뒤집히는 것은 전부 배치 항이 만듭니다(㉓). MoE expert에서는 ΔFP가 0인데도 회전이 손해입니다(㉗).</li>
+<li><b>대안은 섞지 않고 outlier를 옮기는 것입니다.</b> QDS(접기, 비용 0)가 주 방법이고 4/6과 직교합니다(㉔, ㉕). 채널 outlier가 없는 MoE expert에서는 OCS가 보완책입니다(㉔, ㉗).</li>
+<li><b>end-to-end:</b> 8B NVFP4에서 QDS-4/6이 MR-GPTQ와 WUSH보다 ppl이 낮고(㉖), OLMoE에서도 회전(무작위 부호 포함)이 가장 나쁩니다(㉗). 학습에서 WGRAD RHT는 이득이 없습니다(㉘).</li>
+</ul>
+<h3>결론</h3>
+<ol>
+<li>논문의 <b>관찰</b>, 즉 RHT 이후 균일 격자가 우세하다는 결과는 실제 텐서에서 재현됩니다.</li>
+<li>논문의 <b>설명</b>, 즉 shrinkage bias가 원인이고 RHT가 이를 증폭한다는 주장은 뒷받침되지 않습니다. bias는 0.5% 이하로 작고, RHT는 오히려 이를 줄이거나 부호를 뒤집습니다.</li>
+<li><b>진짜 원인은 격자 레벨 위치와 RHT 이후 분포의 불일치입니다.</b> RHT 후 E2M1 오차의 65~76%가 간격 2인 상위 bin에서 나오고, 데이터에 맞춘 최적 격자는 거의 균일합니다.</li>
+<li><b>RHT를 바꾸는 방법으로는 E2M1을 개선할 수 없습니다.</b> 직교 회전은 Gaussian 쪽으로 섞기 때문에, E2M1에 가장 좋은 회전은 “회전 없음”입니다. 대신 블록별 스케일 선택(4/6)이 상위 bin 문제를 직접 줄여, 회전 없는 E2M1이 UFP4에 0.2~0.6 dB까지 다가갑니다.</li>
+<li><b>E2M1 격자를 블록별로 뒤집는 선택지(FLIP)를 4/6과 함께 쓰면, RHT를 쓴 E2M1이 UFP4와 0.15 dB 이내로 같아집니다.</b> 다만 네이티브 FP4 하드웨어에서는 GEMM이 2배가 되어 FP8과 비용이 비슷해지므로 실용성은 낮습니다. 하드웨어 변경 없이 쓸 수 있는 개선은 4/6입니다.</li>
+<li><b>unbiased 보정만으로는 UFP4와의 격차를 메울 수 없습니다.</b> 격차의 대부분은 해상도(MSE)에서 옵니다. SR은 손해이고, α 보정은 효과가 거의 없습니다.</li>
+<li>E1M2와 대칭 INT4는 같은 양자화기입니다. INT4를 −8까지 쓰면 2~4% 축소가 생기지만, 그래도 RHT 이후에는 E2M1보다 SQNR이 높습니다.</li>
+</ol>
+<h3>한계</h3>
+<ul>
+<li>Stage 0은 텐서 하나와 GEMM 하나 단위의 오차만 측정합니다. 학습 중 오차가 누적되는 효과, 특히 backward 경로를 따라 체계적으로 축소되는 효과는 측정하지 않았습니다.</li>
+<li>체크포인트는 BF16으로 학습된 모델입니다. FP4로 학습한 모델은 텐서 분포가 다를 수 있습니다.</li>
+<li>batch는 4096 토큰 하나뿐입니다. 다만 4개 체크포인트에서 결과가 일관되어 이 한계의 영향은 작아 보입니다.</li>
+<li>FP4 하드웨어가 없어 에뮬레이션(양자화 후 역양자화, FP32 누산)으로 측정했습니다.</li>
+</ul>
+<h3>다음 단계 (Stage 1)</h3>
+<p>50M~125M 모델을 fake-quant로 학습하고 다음 arm들을 비교합니다. BF16 arm은 seed 2~3개로 돌려 loss의 잡음 수준(noise floor)을 먼저 확인합니다.</p>
+<ul>
+<li>BF16</li>
+<li>E2M1-ref</li>
+<li>E2M1 + full RHT</li>
+<li>UFP4</li>
+<li>INT4 비대칭(−8..7) + full RHT. 대칭 INT4는 UFP4와 같으므로 제외합니다.</li>
+<li>E2M1-4/6, 회전 없음 (⑨의 최선 E2M1 설정)</li>
+<li>E2M1 4/6|FLIP4/6 + H16 (⑩의 최선 E2M1 설정)</li>
+<li>E2M1 + full RHT + α 보정</li>
+</ul>
+<p>“E2M1 + full RHT”와 “UFP4”를 비교하면 논문에서 섞여 있던 격자 효과와 RHT 범위 효과를 분리할 수 있습니다. “α 보정” arm은 레이어마다 일관되게 축소되는 효과가 학습 loss에 영향을 주는지를 직접 검증합니다.</p>
+
+<h2>재현 방법</h2>
+<pre>cd ./
+V=.venv
+export LD_LIBRARY_PATH=$(ls -d $V/lib/python3.12/site-packages/nvidia/*/lib | tr '\n' ':')$LD_LIBRARY_PATH
+CUDA_VISIBLE_DEVICES=0 $V/bin/python stage0/stage0_probe.py \
+  --ckpt $LINGUA_CKPTS/llama300M \
+  --tag llama300M --out stage0/s0_llama300M.jsonl
+$V/bin/python stage0/stage0_agg.py stage0/s0_*.jsonl > stage0/stage0_tables.md
+$V/bin/python stage0/int4_vs_e1m2.py > stage0/int4_vs_e1m2.md   # ⑦
+$V/bin/python stage0/cause_probe.py > stage0/cause_probe.md     # ⑧
+$V/bin/python rotation/rht_variants.py --ckpt ... --tag llama300M --out rotation/rv_llama300M.jsonl   # ⑨
+$V/bin/python rotation/rv_agg.py rotation/rv_*.jsonl > rotation/rv_tables.md
+$V/bin/python flip/flip_test.py --ckpt ... --tag llama300M --out flip/flip_llama300M.jsonl   # ⑩
+$V/bin/python flip/flip_agg.py flip/flip_*.jsonl > flip/flip_tables.md
+$V/bin/python report/make_figs.py          # figs/*.png (fonts/의 Noto Sans CJK 사용)
+$V/bin/python report/build_report.py        # report.html 생성 (fontTools 필요)</pre>
+<p class="note">전체 표: <code>stage0_tables.md</code> · 요약: <code>summary.md</code> · 원본 기록: <code>s0_*.jsonl</code></p>
+</main>
+</body>
+</html>

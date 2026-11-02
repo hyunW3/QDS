@@ -1,0 +1,99 @@
+{
+ "model": "llama3.1-8b",
+ "hf": "meta-llama/Llama-3.1-8B",
+ "fmt": "nvfp",
+ "method": "MR-GPTQ (FP-Quant official)",
+ "w_bits": 4,
+ "a_bits": 4,
+ "flags": "python mrgptq_run.py --tag llama3.1-8b --out out/llama3.1-8b_nvfp4_mrgptq.json -- --model_name_or_path=meta-llama/Llama-3.1-8B --w_bits=4 --a_bits=4 --gptq --w_observer=mse --quantization_order=activation --transform_class=hadamard --dataset_name_or_path=fineweb-edu --num_sequences=128 --sequence_length=2048 --dtype=auto --cpu_offload_activations --cpu_offload_modules --fuse_global_scale --amp --format=nvfp --w_group_size=16 --a_group_size=16 --hadamard_group_size=16",
+ "fpquant_args": {
+  "model_name_or_path": "meta-llama/Llama-3.1-8B",
+  "dataset_name_or_path": "fineweb-edu",
+  "sequence_length": 2048,
+  "num_sequences": 128,
+  "format": "nvfp",
+  "scale_precision": "e4m3",
+  "w_granularity": "group",
+  "w_bits": 4,
+  "w_group_size": 16,
+  "w_observer": "mse",
+  "a_bits": 4,
+  "a_granularity": "group",
+  "a_group_size": 16,
+  "a_observer": "minmax",
+  "export_quantized_model": "",
+  "gptq": true,
+  "quantization_order": "activation",
+  "rel_damp": 0.01,
+  "transform_class": "hadamard",
+  "hadamard_group_size": 16,
+  "log_wandb": false,
+  "verbose": false,
+  "dtype": "auto",
+  "seed": 42,
+  "cpu_offload_modules": true,
+  "cpu_offload_activations": true,
+  "amp": true,
+  "compile": false,
+  "fuse_global_scale": true,
+  "eval_perplexity": false,
+  "eval_openllm": false,
+  "lm_eval_batch_size": "auto",
+  "lm_eval_tasks": [
+   "mmlu_cot_llama",
+   "arc_challenge_llama",
+   "gsm8k_llama",
+   "hellaswag",
+   "winogrande",
+   "truthfulqa"
+  ],
+  "disable_thinking": false,
+  "save_path": null,
+  "max_shard_size": 5368709120
+ },
+ "calibration": "fineweb-edu: 128 seqs x 2048 tokens (FP-Quant get_data, seed 42; fineweb-edu sample-10BT streaming shuffle(seed=42,buffer=1000), docs >= 2048 tokens, random crop)",
+ "ppl_chunks": null,
+ "quant_sec": 2100.595245361328,
+ "wikitext2_ppl": 6.892143440009442,
+ "ppl_sec": 177.5724220275879,
+ "lm_eval": {
+  "arc_challenge": {
+   "acc": 0.49146757679180886,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.515358361774744,
+   "acc_norm_stderr": "N/A"
+  },
+  "arc_easy": {
+   "acc": 0.79503367003367,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7853535353535354,
+   "acc_norm_stderr": "N/A"
+  },
+  "hellaswag": {
+   "acc": 0.579964150567616,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7678749253136825,
+   "acc_norm_stderr": "N/A"
+  },
+  "piqa": {
+   "acc": 0.7867247007616975,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.8019586507072906,
+   "acc_norm_stderr": "N/A"
+  },
+  "winogrande": {
+   "acc": 0.7205998421468035,
+   "acc_stderr": "N/A"
+  }
+ },
+ "lm_eval_main": {
+  "arc_challenge": 0.515358361774744,
+  "arc_easy": 0.7853535353535354,
+  "hellaswag": 0.7678749253136825,
+  "piqa": 0.8019586507072906,
+  "winogrande": 0.7205998421468035
+ },
+ "avg5": 0.7182290630592112,
+ "lm_eval_sec": 2973.640529870987,
+ "runtime_sec": 5261.819393157959
+}

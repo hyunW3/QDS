@@ -1,0 +1,15 @@
+{
+ "model": "olmo2-1b",
+ "BF16": 0.8103172393675407,
+ "E2M1 (no transform) | E2M1": 0.8376179849785297,
+ "E2M1 (no transform) | E2M1-4/6": 0.8342383699277418,
+ "per-layer s (in-kernel x/s, not foldable) | E2M1": 0.8299476573069071,
+ "per-layer s (in-kernel x/s, not foldable) | E2M1-4/6": 0.8272620281482133,
+ "global residual s (learned jointly, foldable) | E2M1": 0.8298180338344638,
+ "global residual s (learned jointly, foldable) | E2M1-4/6": 0.8283206564404504,
+ "global residual s = geo-mean of per-layer s | E2M1": 0.8313814403330503,
+ "global residual s = geo-mean of per-layer s | E2M1-4/6": 0.8272320235988502,
+ "fold: BF16 after folding": 0.8103920239762554,
+ "fold: plain E2M1 on folded weights": 0.8309290089658047,
+ "fold: plain E2M1-4/6 on folded weights": 0.8286323838962596
+}

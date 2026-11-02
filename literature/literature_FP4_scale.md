@@ -1,0 +1,4 @@
+**[SOAR: Scale Optimization for Accurate Reconstruction in NVFP4 Quantization](https://arxiv.org/abs/2605.12245?utm_source=chatgpt.com)**일 가능성이 큽니다. 다만 이 논문이 말하는 scaling은 SmoothQuant처럼 채널을 재조정하는 사전 변환이라기보다, NVFP4 양자화의 scale 자체를 최적화하는 방법입니다.
+1. **[ScaleSweep](https://arxiv.org/abs/2606.07618)**는 블록별 scale 후보를 훑어 MSE나 가중 MSE를 낮추는 scale을 고릅니다. “rotation 대신 scale을 더 잘 고르자”는 취지에 가까운 NVFP4 PTQ 논문입니다. 
+2. **[FOCUS](https://arxiv.org/abs/2608.01847?utm_source=chatgpt.com)**는 FP4의 end-to-end scale learning을 제안합니다. NVFP4/MXFP4를 대상으로 scale을 학습하고, scale의 제약을 완화하거나 세분화하는 접근입니다. 
+3. **[A Comprehensive Evaluation on Quantization Techniques](https://arxiv.org/abs/2507.17417?utm_source=chatgpt.com)**는 NVFP4에서 INT4용 rotation 전략이 제한적인 이득을 보였다고 보고합니다. 다만 이건 특정 scaling 기법을 제안한 논문이라기보다, rotation이 FP4에 그대로 통하지 않을 수 있다는 비교 근거입니다.

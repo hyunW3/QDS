@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+*.pid
+*.lock
+# model checkpoints and data
+*.pt
+*.bin
+*.safetensors
+data/
+stage1/data/
+*.jsonl.gz
+dclm_val_head*.jsonl
+# local-only assets
+fonts/
+report.html
+ptq8b/out/

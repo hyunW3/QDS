@@ -1,0 +1,84 @@
+{
+ "device": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+ "torch": "2.11.0+cu128",
+ "rows": [
+  {
+   "model": "1.3B-class",
+   "kind": "prefill",
+   "B": 1,
+   "T": 2048,
+   "ctx": 0,
+   "bf16": 27.0869,
+   "fp8": 19.9765,
+   "nvfp4_noq": 11.4086,
+   "nvfp4": 15.5378,
+   "nvfp4_46": 14.8236,
+   "nvfp4_rht": 16.9361
+  },
+  {
+   "model": "1.3B-class",
+   "kind": "prefill",
+   "B": 1,
+   "T": 8192,
+   "ctx": 0,
+   "bf16": 117.0627,
+   "fp8": 93.0345,
+   "nvfp4_noq": 66.0985,
+   "nvfp4": 92.6151,
+   "nvfp4_46": 80.5264,
+   "nvfp4_rht": 100.626
+  },
+  {
+   "model": "1.3B-class",
+   "kind": "decode",
+   "B": 1,
+   "T": 1,
+   "ctx": 4096,
+   "bf16": 3.1505,
+   "fp8": 2.6573,
+   "nvfp4_noq": 2.9897,
+   "nvfp4": 3.4088,
+   "nvfp4_46": 3.439,
+   "nvfp4_rht": 3.7307
+  },
+  {
+   "model": "1.3B-class",
+   "kind": "decode",
+   "B": 8,
+   "T": 1,
+   "ctx": 4096,
+   "bf16": 7.1459,
+   "fp8": 6.5367,
+   "nvfp4_noq": 6.631,
+   "nvfp4": 6.967,
+   "nvfp4_46": 7.0517,
+   "nvfp4_rht": 7.331
+  },
+  {
+   "model": "1.3B-class",
+   "kind": "decode",
+   "B": 32,
+   "T": 1,
+   "ctx": 4096,
+   "bf16": 21.479,
+   "fp8": 20.5911,
+   "nvfp4_noq": 20.8052,
+   "nvfp4": 20.7479,
+   "nvfp4_46": 21.0119,
+   "nvfp4_rht": 21.1132
+  },
+  {
+   "model": "1.3B-class",
+   "kind": "decode",
+   "B": 128,
+   "T": 1,
+   "ctx": 2048,
+   "bf16": 41.3527,
+   "fp8": 40.3605,
+   "nvfp4_noq": 39.7056,
+   "nvfp4": 39.9331,
+   "nvfp4_46": 40.233,
+   "nvfp4_rht": 40.314
+  }
+ ]
+}

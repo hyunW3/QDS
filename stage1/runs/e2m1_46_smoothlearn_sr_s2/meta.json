@@ -1,0 +1,27 @@
+{
+ "arm": "e2m1_46_smoothlearn_sr",
+ "seed": 2,
+ "out": "runs/e2m1_46_smoothlearn_sr_s2",
+ "steps": 6000,
+ "micro": 16,
+ "accum": 4,
+ "seqlen": 1024,
+ "lr": 0.0015,
+ "warmup": 400,
+ "eval_every": 500,
+ "dim": 512,
+ "layers": 12,
+ "ffn": 1536,
+ "heads": 8,
+ "slearn_lr": 0.01,
+ "slearn_rows": 1024,
+ "cfg": {
+  "grid": "e2m1",
+  "scale": "46",
+  "tf": "smooth_learn",
+  "dy": "sr",
+  "ofp8": 0.0
+ },
+ "params": 66073088,
+ "tokens_per_step": 65536
+}

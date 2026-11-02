@@ -1,0 +1,70 @@
+{
+ "model": "llama3-8b",
+ "method": "diagomni_46",
+ "fmt": "nvfp4",
+ "gptq": false,
+ "hf": "meta-llama/Meta-Llama-3-8B",
+ "args": {
+  "hf": "meta-llama/Meta-Llama-3-8B",
+  "tag": "llama3-8b",
+  "method": "diagomni_46",
+  "out": "out/llama3-8b_nvfp4_diagomni_46_wts_s2.json",
+  "ncal": 128,
+  "Tcal": 2048,
+  "steps": 250,
+  "limit": null,
+  "ngptq": 128,
+  "fmt": "nvfp4",
+  "gptq": false,
+  "ste": "fp32",
+  "seed": 2,
+  "calset": "wikitext",
+  "omni_epochs": 20,
+  "logs_clamp": 5.0,
+  "dev_clamp": 2.5,
+  "load_scales": "",
+  "drop_shift": false,
+  "shift_skip_first": false,
+  "ppl_only": false,
+  "alpha": 0.5,
+  "save_scales": "out/llama3-8b_nvfp4_diagomni_46_wts_s2.scales.pt",
+  "let_steps": 100,
+  "bs": 8,
+  "cal": "dclm_val_head2000.jsonl",
+  "tasks": "hellaswag,arc_easy,arc_challenge,piqa,winogrande"
+ },
+ "cal_sec": 25867.672865629196,
+ "alpha": {},
+ "wikitext2_ppl": 6.6725702962236415,
+ "lm_eval": {
+  "arc_challenge": {
+   "acc": 0.46928327645051193,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.5008532423208191,
+   "acc_norm_stderr": "N/A"
+  },
+  "arc_easy": {
+   "acc": 0.7815656565656566,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.76010101010101,
+   "acc_norm_stderr": "N/A"
+  },
+  "hellaswag": {
+   "acc": 0.5860386377215694,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7766381198964349,
+   "acc_norm_stderr": "N/A"
+  },
+  "piqa": {
+   "acc": 0.7856365614798694,
+   "acc_stderr": "N/A",
+   "acc_norm": 0.7959738846572362,
+   "acc_norm_stderr": "N/A"
+  },
+  "winogrande": {
+   "acc": 0.7261247040252565,
+   "acc_stderr": "N/A"
+  }
+ },
+ "avg5": 0.7119381922001514
+}
