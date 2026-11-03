@@ -1,0 +1,6 @@
+meta-llama/Meta-Llama-3-8B llama3-8b qdsres_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt
+meta-llama/Llama-3.1-8B llama31-8b qdsres_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt
+Qwen/Qwen3-8B qwen3-8b qdsres_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt
+meta-llama/Meta-Llama-3-8B llama3-8b qdsx_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0
+meta-llama/Llama-3.1-8B llama31-8b qdsx_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0
+Qwen/Qwen3-8B qwen3-8b qdsx_46 nvfp4 0 _wt --ncal 128 --Tcal 2048 --calset wikitext --seed 0
