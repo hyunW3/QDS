@@ -18,7 +18,7 @@ Methods
   sqgrid_46   SmoothQuant form s = ax^a / aw^(1-a), a searched per layer-group on {0,.1..1} by W4A4 output error (alpha oracle), 4/6
   awq_46      AWQ form s = mean|x|^a (normalised), a searched per layer-group on {0,.05..1} by W4A4 output error, 4/6
   qdsx_46     qdsomni_46 with the a grid widened to {0,.1..--amax_x} (default 1.5)
-  qds2d_46    qdsomni_46 with s = ax^a / aw^b, (a, b) searched jointly on {0,.1..1}^2
+  qds2d_46    qdsomni_46 with s = ax^a / aw^b, (a, b) searched jointly on {0,.1..1} x {--b_lo,..--b_hi} (default 0..1)
   qdsres_46   qdsomni_46 scales as init, then a per-channel log-scale residual learned like diagomni_46 (--omni_epochs,
               zero-mean, |residual| <= --res_clamp) through the evaluation quantizer (requires --ste fmt)
   let_46      OmniQuant-LET re-implementation: scale (init SmoothQuant a=0.5) + shift (init channel mid-range) on the attention and
@@ -56,6 +56,7 @@ ap.add_argument("--load_scales", default=""); ap.add_argument("--drop_shift", ac
 ap.add_argument("--alpha", type=float, default=0.5); ap.add_argument("--save_scales", default=""); ap.add_argument("--let_steps", type=int, default=100)
 ap.add_argument("--amax_x", type=float, default=1.5)   # qdsx_46: a grid 0..amax_x (step 0.1)
 ap.add_argument("--res_clamp", type=float, default=1.0)   # qdsres_46: |log s - log s_QDS| bound (after zero-mean)
+ap.add_argument("--b_lo", type=float, default=0.0); ap.add_argument("--b_hi", type=float, default=1.0)   # qds2d_46: b grid (step 0.1)
 ap.add_argument("--bs", type=int, default=16); ap.add_argument("--cal", default="/mnt/ssd2/hyun2/AUNet/data/dclm_baseline_1.0_2shards_shuffled/dclm_baseline_1.0_2shards.val.jsonl"); ap.add_argument("--tasks", default="hellaswag,arc_easy,arc_challenge,piqa,winogrande")
 args = ap.parse_args()
 dev = "cuda"; torch.manual_seed(args.seed)
@@ -525,7 +526,8 @@ def ours_seq(cal, mode):
                 v = amax[g].clamp(min=1e-8).pow(a) / aw[g].pow(1 - a if b is None else b); return tie_o(v) if g == "o" else v
             grid = [k / 10 for k in range(11)]; sel = list(range(min(16, len(xfp))))
             if mode == "qdsx": grid = [k / 10 for k in range(int(round(args.amax_x * 10)) + 1)]
-            cands = [(a, b) for a in grid for b in grid] if mode == "qds2d" else [(a, None) for a in grid]
+            bgrid = [round(args.b_lo + k / 10, 1) for k in range(int(round((args.b_hi - args.b_lo) * 10)) + 1)]
+            cands = [(a, b) for a in grid for b in bgrid] if mode == "qds2d" else [(a, None) for a in grid]
             fitq = lambda A: e2m1_fp32(A)                              # QDS fitting quantizer: E2M1, FP32 block scale, absmax -> 6
             if mode in ("qds", "qdsx", "qds2d", "qdsres"):              # per-group GEMM output error (the QDS definition)
                 err = {g: [0.0] * len(cands) for g, _ in GROUPS}; den = {g: 0.0 for g, _ in GROUPS}
