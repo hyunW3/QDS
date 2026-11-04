@@ -1,0 +1,3 @@
+meta-llama/Llama-3.1-8B llama31-8b diagblk_46 nvfp4 0 _wt_fmt_noclamp --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt --dev_clamp 1000
+meta-llama/Meta-Llama-3-8B llama3-8b diagblk_46 nvfp4 0 _wt_fmt_noclamp --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt --dev_clamp 1000
+Qwen/Qwen3-8B qwen3-8b diagblk_46 nvfp4 0 _wt_fmt_noclamp --ncal 128 --Tcal 2048 --calset wikitext --seed 0 --ste fmt --dev_clamp 1000

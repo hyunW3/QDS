@@ -177,7 +177,7 @@ QCFG = {"e2m1": dict(), "e2m1_46": dict(four_six=True), "e2m1_h16": dict(rot=Tru
         "e2m1_or": dict(orest=True), "e2m1_or46": dict(four_six=True, orest=True), "diag_or": dict(orest=True), "diag_or46": dict(four_six=True, orest=True), "awqneg_46": dict(four_six=True), "omni_46": dict(four_six=True), "omnins_46": dict(four_six=True),
         "diagomni_46": dict(four_six=True), "diagomni_or46": dict(four_six=True, orest=True), "sqomni_46": dict(four_six=True),
         "qdsomni_46": dict(four_six=True), "qdsblk_46": dict(four_six=True),
-        "qdsx_46": dict(four_six=True), "qds2d_46": dict(four_six=True), "qdsres_46": dict(four_six=True)}
+        "qdsx_46": dict(four_six=True), "qds2d_46": dict(four_six=True), "qdsres_46": dict(four_six=True), "diagblk_46": dict(four_six=True)}
 SCALED = ("sq_46", "diag_46", "diag", "diag_h", "diag_46_h", "sqgrid_46", "awq_46", "let_46", "letns_46", "diag_or", "diag_or46", "awqneg_46")
 
 
@@ -599,6 +599,48 @@ def ours_seq(cal, mode):
                             for v_ in V.values(): v_.sub_(v_.mean()).clamp_(-args.res_clamp, args.res_clamp)
                     last = tot / len(xfp)
                 sc = {g: sfn(g).detach().clone() for g, _ in GROUPS}
+        elif mode == "diagblk":                                         # learned s (init 1) on the BLOCK output, eval-quantizer STE
+            for hh in hs: hh.remove()
+            hs = []
+            V = {g: torch.zeros(Hkv * hd if g == "o" else Ws[g][0].shape[1], device=dev, requires_grad=True) for g, _ in GROUPS}
+            sfn = lambda g: torch.exp(V[g].view(Hkv, 1, hd).expand(Hkv, REP, hd).reshape(-1) if g == "o" else V[g])
+            skv = lambda: sfn("o").view(Hkv, REP, hd)[:, 0, :].reshape(-1)
+
+            class BQ(torch.nn.Module):    # one Linear exactly as in the folded + quantized model
+                def __init__(self, lin, xdiv, wcol, row):
+                    super().__init__(); self.lin, self.xdiv, self.wcol, self.row = lin, xdiv, wcol, row
+                def forward(self, x):
+                    sh = x.shape; xs = x.reshape(-1, sh[-1]).float(); W = self.lin.weight.float(); b = self.lin.bias
+                    if self.xdiv: xs = xs / sfn(self.xdiv)
+                    W = W * sfn(self.wcol)
+                    if self.row:
+                        r = skv() if self.row == "o" else sfn(self.row); W = W / r[:, None]
+                        b = None if b is None else b.float() / r
+                    y = ste(xs) @ ste(W).T
+                    if b is not None: y = y + b.float()
+                    return y.view(*sh[:-1], -1).to(x.dtype)
+            # (name, input divided by, weight columns x, weight rows / ): v_proj / up_proj carry both scales, o / down get pre-scaled inputs
+            SPEC = {"q_proj": ("attn_in", "attn_in", None), "k_proj": ("attn_in", "attn_in", None), "v_proj": ("attn_in", "attn_in", "o"),
+                    "o_proj": (None, "o", None), "gate_proj": ("mlp_in", "mlp_in", None), "up_proj": ("mlp_in", "mlp_in", "down"),
+                    "down_proj": (None, "down", None)}
+            with torch.no_grad(): tgt = [run(blk, x).float().cpu() for x in xfp]        # FP block outputs (= yfp below)
+            orig = {}
+            for n, spec in SPEC.items():
+                parent = blk.self_attn if n in ("q_proj", "k_proj", "v_proj", "o_proj") else blk.mlp
+                orig[n] = (parent, getattr(parent, n)); setattr(parent, n, BQ(getattr(parent, n), *spec))
+            opt = torch.optim.AdamW(list(V.values()), lr=1e-2, weight_decay=0.0)
+            gen = torch.Generator().manual_seed(args.seed + i); last = 0.0
+            for ep in range(args.omni_epochs):
+                tot = 0.0
+                for j in torch.randperm(len(xfp), generator=gen).tolist():
+                    y = run(blk, xfp[j]).float().reshape(-1, cfg.hidden_size); t = tgt[j].to(dev).reshape(-1, cfg.hidden_size)
+                    loss = (((y - t) ** 2).sum(-1) / (t * t).sum(-1).clamp(min=1e-12)).mean()   # per-token relative error
+                    opt.zero_grad(); loss.backward(); opt.step(); tot += loss.item()
+                    with torch.no_grad():
+                        for v_ in V.values(): v_.sub_(v_.mean()).clamp_(-args.dev_clamp, args.dev_clamp)
+                last = tot / len(xfp)
+            for n, (parent, lin) in orig.items(): setattr(parent, n, lin)
+            sc = {g: sfn(g).detach().clone() for g, _ in GROUPS}; del tgt
         elif mode == "sq":
             amax = {}
             with torch.no_grad():
@@ -673,11 +715,11 @@ def wikitext_ppl(T=2048):
 res = dict(model=args.tag, method=M, fmt=args.fmt, gptq=args.gptq, hf=args.hf, args=vars(args))
 t0 = time.time(); WQ = {}
 OMNI = M in ("omni_46", "omnins_46")
-OURSEQ = M in ("diagomni_46", "diagomni_or46", "sqomni_46", "qdsomni_46", "qdsblk_46", "qdsx_46", "qds2d_46", "qdsres_46")
+OURSEQ = M in ("diagomni_46", "diagomni_or46", "sqomni_46", "qdsomni_46", "qdsblk_46", "qdsx_46", "qds2d_46", "qdsres_46", "diagblk_46")
 assert M != "qdsres_46" or args.ste == "fmt", "qdsres_46 learns through the eval quantizer: pass --ste fmt"
 ALPHA_SEQ = {}
 if OMNI or OURSEQ:
-    _sv = omniquant(cal_batch(), M == "omni_46") if OMNI else ours_seq(cal_batch(), {"sqomni_46": "sq", "qdsomni_46": "qds", "qdsblk_46": "qdsblk", "qdsx_46": "qdsx", "qds2d_46": "qds2d", "qdsres_46": "qdsres"}.get(M, "diag"))
+    _sv = omniquant(cal_batch(), M == "omni_46") if OMNI else ours_seq(cal_batch(), {"sqomni_46": "sq", "qdsomni_46": "qds", "qdsblk_46": "qdsblk", "qdsx_46": "qdsx", "qds2d_46": "qds2d", "qdsres_46": "qdsres", "diagblk_46": "diagblk"}.get(M, "diag"))
     res["cal_sec"] = time.time() - t0; res["alpha"] = {str(k): v for k, v in ALPHA_SEQ.items()}
     if args.save_scales: torch.save(dict(scales=_sv, args=vars(args)), args.save_scales)
 elif M in SCALED or (args.gptq and M != "bf16"):
