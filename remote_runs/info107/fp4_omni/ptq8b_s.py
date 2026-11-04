@@ -57,6 +57,8 @@ ap.add_argument("--alpha", type=float, default=0.5); ap.add_argument("--save_sca
 ap.add_argument("--amax_x", type=float, default=1.5)   # qdsx_46: a grid 0..amax_x (step 0.1)
 ap.add_argument("--res_clamp", type=float, default=1.0)   # qdsres_46: |log s - log s_QDS| bound (after zero-mean)
 ap.add_argument("--b_lo", type=float, default=0.0); ap.add_argument("--b_hi", type=float, default=1.0)   # qds2d_46: b grid (step 0.1)
+ap.add_argument("--both_fold", action="store_true")   # learned diag: quantize v_proj / up_proj with BOTH folded scales in the loss
+                                                      # (input columns x s_attn_in / s_mlp_in, output rows / s_o / s_down), as at eval
 ap.add_argument("--bs", type=int, default=16); ap.add_argument("--cal", default="/mnt/ssd2/hyun2/AUNet/data/dclm_baseline_1.0_2shards_shuffled/dclm_baseline_1.0_2shards.val.jsonl"); ap.add_argument("--tasks", default="hellaswag,arc_easy,arc_challenge,piqa,winogrande")
 args = ap.parse_args()
 dev = "cuda"; torch.manual_seed(args.seed)
@@ -620,8 +622,13 @@ def ours_seq(cal, mode):
                     loss = 0.0
                     for g, _ in GROUPS:
                         X = got[g]; s_ = sfn(g); Xq = ste(X / s_)
-                        for W in Ws[g]:
-                            Y = X @ W.T; loss = loss + ((Xq @ ste(W * s_).T - Y) ** 2).sum() / (Y * Y).sum()
+                        for k, W in enumerate(Ws[g]):
+                            Y = X @ W.T
+                            r = None                     # --both_fold: v_proj / up_proj also carry the next group's row scale
+                            if args.both_fold and (g, k) == ("attn_in", 2): r = sfn("o").view(Hkv, REP, hd)[:, 0, :].reshape(-1)
+                            if args.both_fold and (g, k) == ("mlp_in", 1): r = sfn("down")
+                            Yh = Xq @ ste(W * s_).T if r is None else (Xq @ ste(W * s_ / r[:, None]).T) * r   # error in original units
+                            loss = loss + ((Yh - Y) ** 2).sum() / (Y * Y).sum()
                     opt.zero_grad(); loss.backward(); opt.step(); tot += loss.item()
                     with torch.no_grad():                # same stabilisation as omniquant(): zero-mean, bounded log s
                         for v_ in V.values(): v_.sub_(v_.mean()).clamp_(-args.dev_clamp, args.dev_clamp)
